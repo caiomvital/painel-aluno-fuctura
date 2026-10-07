@@ -1,314 +1,389 @@
-import { prisma } from '../lib/prisma';
-import { getLessonWithDiary, updateLessonDiary, manualAdjustStudentXp } from '../lib/academic-service';
-import { randomUUID } from 'crypto';
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { prisma } from "../lib/prisma";
+import {
+  getLessonWithDiary,
+  getClassLessonsWithDiary,
+  updateLessonDiary,
+  updateStudentByDirector,
+} from "../lib/academic-service";
 
-async function run() {
-  console.log('=== INÍCIO DA BATERIA DE TESTES DO MARCO 7 ===');
+import { assertTestDatabase } from "../tests/helpers/database";
 
-  // 1. Obter usuários de teste: Professor, Aluno da turma, Aluno de outra turma, Diretor
-  const teacherUser = await prisma.user.findFirst({ where: { role: 'PROFESSOR' }, include: { teacher: true } });
-  const directorUser = await prisma.user.findFirst({ where: { role: 'DIRETOR' }, include: { director: true } });
+assertTestDatabase(process.env.DATABASE_URL);
 
-  if (!teacherUser || !directorUser) {
-    throw new Error('Professor ou Diretor não encontrados no banco.');
-  }
-
-  // Turma do professor
-  const teacherClass = await prisma.class.findFirst({
-    where: { teacherId: teacherUser.teacher?.id },
-    include: { lessons: { orderBy: { lessonNumber: 'asc' } }, enrollments: true },
-  });
-
-  if (!teacherClass || teacherClass.lessons.length === 0) {
-    throw new Error('Turma ou aulas do professor não encontradas.');
-  }
-
-  const testLesson = teacherClass.lessons[0];
-  console.log(`Aula de teste: ${testLesson.id} - Aula ${testLesson.lessonNumber}: ${testLesson.title}`);
-
-  // Teste 1: Professor adiciona 5 tópicos planejados
-  console.log('\n--- TESTE 1: Professor adiciona 5 tópicos planejados ---');
-  const planned5 = [
-    'O que é herança',
-    'A palavra extends',
-    'Reutilização de atributos e métodos',
-    'Sobrescrita de métodos',
-    'Exercício prático',
-  ];
-
-  await updateLessonDiary(
-    testLesson.id,
-    { plannedTopics: planned5 },
-    { id: teacherUser.id, role: 'PROFESSOR', teacherId: teacherUser.teacher?.id }
+const prefix = `marco7_${randomUUID()}`;
+let passed = 0;
+async function check(name: string, run: () => Promise<void>) {
+  await run();
+  passed++;
+  console.log(`PASS ${passed}: ${name}`);
+}
+async function forbidden(run: () => Promise<unknown>) {
+  await assert.rejects(
+    run,
+    (error: unknown) => (error as { statusCode?: number }).statusCode === 403,
   );
-
-  let diary = await getLessonWithDiary(testLesson.id, {
-    id: teacherUser.id,
-    role: 'PROFESSOR',
-    teacherId: teacherUser.teacher?.id,
-  });
-  console.log(`Tópicos planejados salvos: ${diary.plannedTopics.length}`);
-  if (diary.plannedTopics.length !== 5) throw new Error('Falha ao salvar 5 tópicos planejados');
-
-  // Teste 2: Professor registra 3 tópicos ministrados
-  console.log('\n--- TESTE 2: Professor registra 3 tópicos ministrados ---');
-  const taught3 = [
-    'Conceito de herança',
-    'Uso de extends',
-    'Exercício com classes Pessoa e Aluno',
-  ];
-
-  await updateLessonDiary(
-    testLesson.id,
-    { taughtTopics: taught3 },
-    { id: teacherUser.id, role: 'PROFESSOR', teacherId: teacherUser.teacher?.id }
-  );
-
-  // Teste 3: Os dois conjuntos permanecem independentes
-  console.log('\n--- TESTE 3: Planejados e ministrados permanecem independentes ---');
-  diary = await getLessonWithDiary(testLesson.id, {
-    id: teacherUser.id,
-    role: 'PROFESSOR',
-    teacherId: teacherUser.teacher?.id,
-  });
-  console.log(`Planejados: ${diary.plannedTopics.length}, Ministrados: ${diary.taughtTopics.length}`);
-  if (diary.plannedTopics.length !== 5 || diary.taughtTopics.length !== 3) {
-    throw new Error('Independência violada entre planejados e ministrados!');
-  }
-
-  // Teste 4: Professor adiciona 2 links externos
-  console.log('\n--- TESTE 4: Professor adiciona 2 links externos ---');
-  const initialMaterials = [
-    {
-      title: 'Código da aula — GitHub',
-      url: 'https://github.com/fuctura/java-poo-aula5',
-      description: 'Repositório completo com exemplos',
-    },
-    {
-      title: 'Slides de Herança — Google Drive',
-      url: 'https://drive.google.com/file/d/poo-slides-aula5',
-      description: 'Apresentação em PDF',
-    },
-  ];
-
-  await updateLessonDiary(
-    testLesson.id,
-    { materials: initialMaterials },
-    { id: teacherUser.id, role: 'PROFESSOR', teacherId: teacherUser.teacher?.id }
-  );
-
-  diary = await getLessonWithDiary(testLesson.id, {
-    id: teacherUser.id,
-    role: 'PROFESSOR',
-    teacherId: teacherUser.teacher?.id,
-  });
-  console.log(`Materiais salvos: ${diary.materials.length}`);
-  if (diary.materials.length !== 2) throw new Error('Falha ao salvar 2 materiais');
-
-  // Teste 5: Professor edita um link
-  console.log('\n--- TESTE 5: Professor edita um link ---');
-  const editedMaterials = [
-    {
-      id: diary.materials[0].id,
-      title: 'Código da aula — GitHub (Atualizado)',
-      url: 'https://github.com/fuctura/java-poo-aula5-v2',
-      description: 'Código com gabarito',
-    },
-    diary.materials[1],
-  ];
-
-  await updateLessonDiary(
-    testLesson.id,
-    { materials: editedMaterials },
-    { id: teacherUser.id, role: 'PROFESSOR', teacherId: teacherUser.teacher?.id }
-  );
-
-  diary = await getLessonWithDiary(testLesson.id, {
-    id: teacherUser.id,
-    role: 'PROFESSOR',
-    teacherId: teacherUser.teacher?.id,
-  });
-  console.log(`Material 1 editado para: ${diary.materials[0].title}`);
-  if (!diary.materials[0].title.includes('Atualizado')) throw new Error('Edição de material falhou');
-
-  // Teste 6: Professor exclui um tópico
-  console.log('\n--- TESTE 6: Professor exclui um tópico ---');
-  const planned4 = diary.plannedTopics.slice(0, 4);
-  await updateLessonDiary(
-    testLesson.id,
-    { plannedTopics: planned4 },
-    { id: teacherUser.id, role: 'PROFESSOR', teacherId: teacherUser.teacher?.id }
-  );
-
-  diary = await getLessonWithDiary(testLesson.id, {
-    id: teacherUser.id,
-    role: 'PROFESSOR',
-    teacherId: teacherUser.teacher?.id,
-  });
-  console.log(`Tópicos planejados após remoção de 1: ${diary.plannedTopics.length}`);
-  if (diary.plannedTopics.length !== 4) throw new Error('Falha ao excluir tópico');
-  // Confirmar que materiais não foram afetados
-  if (diary.materials.length !== 2) throw new Error('Materiais foram apagados acidentalmente ao editar tópicos!');
-
-  // Teste 7: Aluno matriculado visualiza os dados atualizados
-  console.log('\n--- TESTE 7: Aluno matriculado visualiza dados atualizados ---');
-  const enrolledStudent = await prisma.student.findFirst({
-    where: { enrollments: { some: { classId: teacherClass.id, status: 'ACTIVE' } } },
-    include: { user: true },
-  });
-
-  if (enrolledStudent) {
-    const studentDiary = await getLessonWithDiary(testLesson.id, {
-      id: enrolledStudent.userId,
-      role: 'ALUNO',
-      studentId: enrolledStudent.id,
-    });
-    console.log(
-      `Aluno matriculado ${enrolledStudent.user.name}: ${studentDiary.plannedTopics.length} planejados, ${studentDiary.taughtTopics.length} ministrados, ${studentDiary.materials.length} materiais.`
-    );
-  }
-
-  // Teste 8: Aluno de outra turma não acessa os dados (403)
-  console.log('\n--- TESTE 8: Aluno de outra turma bloqueado (403) ---');
-  const nonEnrolledStudent = await prisma.student.findFirst({
-    where: { enrollments: { none: { classId: teacherClass.id } } },
-    include: { user: true },
-  });
-
-  if (nonEnrolledStudent) {
-    let forbiddenCaught = false;
-    try {
-      await getLessonWithDiary(testLesson.id, {
-        id: nonEnrolledStudent.userId,
-        role: 'ALUNO',
-        studentId: nonEnrolledStudent.id,
-      });
-    } catch (err: any) {
-      if (err.statusCode === 403) forbiddenCaught = true;
-    }
-    console.log(`Aluno não matriculado bloqueado com 403: ${forbiddenCaught}`);
-    if (!forbiddenCaught) throw new Error('Aluno de outra turma conseguiu acessar os dados da aula!');
-  }
-
-  // Teste 9: Professor de outra turma não consegue editar (403)
-  console.log('\n--- TESTE 9: Professor de outra turma bloqueado para edição (403) ---');
-  const otherTeacher = await prisma.teacher.findFirst({
-    where: { id: { not: teacherUser.teacher?.id } },
-    include: { user: true },
-  });
-
-  if (otherTeacher) {
-    let teacherForbidden = false;
-    try {
-      await updateLessonDiary(
-        testLesson.id,
-        { plannedTopics: ['Tentativa não autorizada'] },
-        { id: otherTeacher.userId, role: 'PROFESSOR', teacherId: otherTeacher.id }
-      );
-    } catch (err: any) {
-      if (err.statusCode === 403) teacherForbidden = true;
-    }
-    console.log(`Outro professor bloqueado para edição com 403: ${teacherForbidden}`);
-    if (!teacherForbidden) throw new Error('Professor não responsável conseguiu editar o diário!');
-  }
-
-  // Teste 10: Diretor consegue consultar e editar
-  console.log('\n--- TESTE 10: Diretor consulta e edita diário ---');
-  const directorView = await getLessonWithDiary(testLesson.id, {
-    id: directorUser.id,
-    role: 'DIRETOR',
-    directorId: directorUser.director?.id,
-  });
-  console.log(`Diretor consultou aula: ${directorView.title}`);
-
-  await updateLessonDiary(
-    testLesson.id,
-    { plannedTopics: [...diary.plannedTopics, 'Tópico homologado pela Direção'] },
-    { id: directorUser.id, role: 'DIRETOR', directorId: directorUser.director?.id }
-  );
-
-  const directorAfter = await getLessonWithDiary(testLesson.id, {
-    id: directorUser.id,
-    role: 'DIRETOR',
-    directorId: directorUser.director?.id,
-  });
-  console.log(`Diretor atualizou tópicos com sucesso. Total agora: ${directorAfter.plannedTopics.length}`);
-  if (directorAfter.plannedTopics.length !== 5) throw new Error('Diretor não conseguiu editar diário!');
-
-  // Teste 11: Persistência após consulta direta ao Prisma
-  console.log('\n--- TESTE 11: Persistência direta no Prisma ---');
-  const dbLesson = await prisma.lesson.findUnique({
-    where: { id: testLesson.id },
-    include: { contents: true },
-  });
-  console.log(`Prisma DB -> contents count: ${dbLesson?.contents.length}`);
-  if (!dbLesson || dbLesson.contents.length === 0) throw new Error('Dados não foram persistidos no PostgreSQL!');
-
-  // Teste 12: Integridade de presença, XP e Coins
-  console.log('\n--- TESTE 12: Verificação de efeitos colaterais em Presença, XP e Coins ---');
-  const attendancesCount = await prisma.attendance.count({ where: { lessonId: testLesson.id } });
-  console.log(`Presenças associadas à aula: ${attendancesCount} (intactas e inalteradas)`);
-
-  // Teste 13: Aula sem conteúdo apresenta estados vazios adequados
-  console.log('\n--- TESTE 13: Aula sem conteúdo com estados vazios ---');
-  const emptyLesson = await prisma.lesson.findFirst({
-    where: { id: { not: testLesson.id } },
-  });
-  if (emptyLesson) {
-    await updateLessonDiary(
-      emptyLesson.id,
-      { plannedTopics: [], taughtTopics: [], materials: [] },
-      { id: directorUser.id, role: 'DIRETOR' }
-    );
-    const emptyResult = await getLessonWithDiary(emptyLesson.id, { id: directorUser.id, role: 'DIRETOR' });
-    console.log(
-      `Aula limpa -> planejados: ${emptyResult.plannedTopics.length}, ministrados: ${emptyResult.taughtTopics.length}, materiais: ${emptyResult.materials.length}`
-    );
-    if (
-      emptyResult.plannedTopics.length !== 0 ||
-      emptyResult.taughtTopics.length !== 0 ||
-      emptyResult.materials.length !== 0
-    ) {
-      throw new Error('Estado vazio falhou!');
-    }
-  }
-
-  // Seção 11: Pendência anterior — Dois ajustes manuais consecutivos de XP
-  console.log('\n--- TESTE SEÇÃO 11: Dois ajustes manuais consecutivos de XP pelo Diretor ---');
-  const testStudent = await prisma.student.findFirst({ include: { user: true } });
-  if (testStudent) {
-    const xpBefore = testStudent.currentXp;
-    const coinsBefore = testStudent.coinBalance;
-
-    const op1 = await manualAdjustStudentXp(testStudent.id, 50, 'Ajuste manual de XP 1 teste', directorUser.id);
-    const op2 = await manualAdjustStudentXp(testStudent.id, 30, 'Ajuste manual de XP 2 teste', directorUser.id);
-
-    console.log('Operação 1 originReference:', op1.transaction.originReference);
-    console.log('Operação 2 originReference:', op2.transaction.originReference);
-
-    if (op1.transaction.originReference === op2.transaction.originReference) {
-      throw new Error('originReference duplicado entre ajustes manuais consecutivos!');
-    }
-
-    const studentAfter = await prisma.student.findUnique({ where: { id: testStudent.id } });
-    console.log(`XP antes: ${xpBefore}, após ajustes (+80): ${studentAfter?.currentXp}`);
-    console.log(`Coins antes: ${coinsBefore}, após ajustes de XP: ${studentAfter?.coinBalance}`);
-
-    if ((studentAfter?.currentXp || 0) !== xpBefore + 80) {
-      throw new Error('Cálculo final de XP incorreto após 2 ajustes!');
-    }
-    if ((studentAfter?.coinBalance || 0) !== coinsBefore) {
-      throw new Error('Coins foram concedidas indevidamente durante ajuste manual de XP!');
-    }
-    console.log('Validação de XP manual e reconciliação concluída com sucesso!');
-  }
-
-  console.log('\n=== TODOS OS TESTES PASSARAM COM SUCESSO ABSOLUTO! ===');
 }
 
-run()
-  .then(() => process.exit(0))
-  .catch((e) => {
-    console.error('ERRO:', e);
-    process.exit(1);
-  });
+async function run() {
+  try {
+    const teacherUser = await prisma.user.create({
+      data: {
+        id: `${prefix}_teacher`,
+        email: `${prefix}_teacher@example.test`,
+        name: "Professor teste",
+        passwordHash: "not-a-login-password",
+        role: "PROFESSOR",
+        teacher: { create: {} },
+      },
+      include: { teacher: true },
+    });
+    const otherTeacher = await prisma.user.create({
+      data: {
+        id: `${prefix}_otherteacher`,
+        email: `${prefix}_otherteacher@example.test`,
+        name: "Outro professor",
+        passwordHash: "not-a-login-password",
+        role: "PROFESSOR",
+        teacher: { create: {} },
+      },
+      include: { teacher: true },
+    });
+    const directorUser = await prisma.user.create({
+      data: {
+        id: `${prefix}_director`,
+        email: `${prefix}_director@example.test`,
+        name: "Diretor teste",
+        passwordHash: "not-a-login-password",
+        role: "DIRETOR",
+        director: { create: {} },
+      },
+    });
+    const studentUser = await prisma.user.create({
+      data: {
+        id: `${prefix}_student`,
+        email: `${prefix}_student@example.test`,
+        name: "Aluno teste",
+        passwordHash: "not-a-login-password",
+        role: "ALUNO",
+        student: {
+          create: {
+            registrationNumber: `${prefix}_registration`,
+            coinBalance: 100,
+          },
+        },
+      },
+      include: { student: true },
+    });
+    const outsider = await prisma.user.create({
+      data: {
+        id: `${prefix}_outsider`,
+        email: `${prefix}_outsider@example.test`,
+        name: "Aluno outra turma",
+        passwordHash: "not-a-login-password",
+        role: "ALUNO",
+        student: {
+          create: { registrationNumber: `${prefix}_other_registration` },
+        },
+      },
+      include: { student: true },
+    });
+    assert(
+      teacherUser.teacher &&
+        otherTeacher.teacher &&
+        studentUser.student &&
+        outsider.student,
+    );
+    const course = await prisma.course.create({
+      data: { id: `${prefix}_course`, code: prefix, name: "Curso teste" },
+    });
+    const cls = await prisma.class.create({
+      data: {
+        id: `${prefix}_class`,
+        code: prefix,
+        name: "Turma teste",
+        courseId: course.id,
+        teacherId: teacherUser.teacher.id,
+        startDate: new Date(),
+        daysOfWeek: "SAB",
+        scheduleTime: "08:30 - 12:30",
+      },
+    });
+    await prisma.enrollment.create({
+      data: { classId: cls.id, studentId: studentUser.student.id },
+    });
+    const lesson = await prisma.lesson.create({
+      data: {
+        classId: cls.id,
+        teacherId: teacherUser.teacher.id,
+        lessonNumber: 1,
+        title: "Herança",
+        date: new Date(),
+        scheduleTime: cls.scheduleTime,
+        plannedContent: "",
+      },
+    });
+    await prisma.attendance.create({
+      data: {
+        lessonId: lesson.id,
+        studentId: studentUser.student.id,
+        status: "PRESENT",
+      },
+    });
+    const teacher = {
+      id: teacherUser.id,
+      role: "PROFESSOR",
+      teacherId: teacherUser.teacher.id,
+    };
+    const director = { id: directorUser.id, role: "DIRETOR" };
+    const student = {
+      id: studentUser.id,
+      role: "ALUNO",
+      studentId: studentUser.student.id,
+    };
+    const read = () => getLessonWithDiary(lesson.id, teacher);
+    const write = (data: Parameters<typeof updateLessonDiary>[1]) =>
+      updateLessonDiary(lesson.id, data, teacher);
+    const snapshot = async () => ({
+      student: await prisma.student.findUniqueOrThrow({
+        where: { id: student.studentId },
+      }),
+      attendance: await prisma.attendance.findMany({
+        where: { lessonId: lesson.id },
+        orderBy: { id: "asc" },
+      }),
+      points: await prisma.pointTransaction.findMany({
+        where: { studentId: student.studentId },
+        orderBy: { id: "asc" },
+      }),
+      coins: await prisma.coinTransaction.findMany({
+        where: { studentId: student.studentId },
+        orderBy: { id: "asc" },
+      }),
+    });
+    const before = await snapshot();
+    const planned = [
+      "Herança",
+      "extends",
+      "Atributos",
+      "Sobrescrita",
+      "Exercício",
+    ];
+    const taught = ["Herança", "extends", "Pessoa e Aluno"];
+    await check("cinco tópicos planejados", async () => {
+      await write({ plannedTopics: planned });
+      assert.deepEqual((await read()).plannedTopics, planned);
+    });
+    await check("três tópicos ministrados independentes", async () => {
+      await write({ taughtTopics: taught });
+      const diary = await read();
+      assert.deepEqual(diary.plannedTopics, planned);
+      assert.deepEqual(diary.taughtTopics, taught);
+    });
+    await check("dois links externos", async () => {
+      await write({
+        materials: [
+          {
+            id: "code",
+            title: "Java",
+            url: "https://docs.oracle.com/en/java/",
+          },
+          {
+            id: "source",
+            title: "Código",
+            url: "https://github.com/openjdk/jdk",
+            description: "OpenJDK",
+          },
+        ],
+      });
+      assert.equal((await read()).materials.length, 2);
+    });
+    await check("editar link preserva tópicos", async () => {
+      const materials = (await read()).materials;
+      materials[0].url = "https://dev.java/learn/";
+      await write({ materials });
+      const diary = await read();
+      assert.equal(diary.materials[0].url, materials[0].url);
+      assert.deepEqual(diary.plannedTopics, planned);
+      assert.deepEqual(diary.taughtTopics, taught);
+    });
+    await check("editar e excluir tópico preserva materiais", async () => {
+      await write({
+        plannedTopics: ["Herança em Java", ...planned.slice(1, 4)],
+      });
+      const diary = await read();
+      assert.equal(diary.plannedTopics.length, 4);
+      assert.equal(diary.plannedTopics[0], "Herança em Java");
+      assert.equal(diary.materials.length, 2);
+    });
+    await check("excluir link preserva planejados e ministrados", async () => {
+      await write({ materials: (await read()).materials.slice(0, 1) });
+      const diary = await read();
+      assert.equal(diary.materials.length, 1);
+      assert.equal(diary.plannedTopics.length, 4);
+      assert.deepEqual(diary.taughtTopics, taught);
+    });
+    await check("aluno matriculado consulta diário e cronograma", async () => {
+      assert.deepEqual(
+        await getLessonWithDiary(lesson.id, student),
+        await read(),
+      );
+      const lessons = await getClassLessonsWithDiary(cls.id, student);
+      assert.deepEqual(lessons[0], await read());
+    });
+    await check("aluno sem matrícula é bloqueado", async () => {
+      const session = {
+        id: outsider.id,
+        role: "ALUNO",
+        studentId: outsider.student!.id,
+      };
+      await forbidden(() => getLessonWithDiary(lesson.id, session));
+      await forbidden(() => getClassLessonsWithDiary(cls.id, session));
+    });
+    await check("matrícula inativa é bloqueada", async () => {
+      await prisma.enrollment.update({
+        where: {
+          studentId_classId: { studentId: student.studentId, classId: cls.id },
+        },
+        data: { status: "DROPPED" },
+      });
+      await forbidden(() => getLessonWithDiary(lesson.id, student));
+      await prisma.enrollment.update({
+        where: {
+          studentId_classId: { studentId: student.studentId, classId: cls.id },
+        },
+        data: { status: "ACTIVE" },
+      });
+    });
+    await check("aluno não edita", async () => {
+      await forbidden(() =>
+        updateLessonDiary(lesson.id, { plannedTopics: [] }, student),
+      );
+    });
+    await check("outro professor não edita", async () => {
+      await forbidden(() =>
+        updateLessonDiary(
+          lesson.id,
+          { plannedTopics: [] },
+          {
+            id: otherTeacher.id,
+            role: "PROFESSOR",
+            teacherId: otherTeacher.teacher!.id,
+          },
+        ),
+      );
+    });
+    await check("diretor consulta e edita", async () => {
+      assert.equal(
+        (await getLessonWithDiary(lesson.id, director)).id,
+        lesson.id,
+      );
+      await updateLessonDiary(
+        lesson.id,
+        { taughtTopics: [...taught, "Revisão"] },
+        director,
+      );
+      assert.equal((await read()).taughtTopics.length, 4);
+    });
+    await check(
+      "título obrigatório e protocolos inseguros são rejeitados",
+      async () => {
+        for (const material of [
+          { id: "bad", title: "", url: "https://example.com" },
+          { id: "bad", title: "X", url: "javascript:alert(1)" },
+          { id: "bad", title: "X", url: "https://" },
+        ]) {
+          await assert.rejects(
+            () => write({ materials: [material] }),
+            (error: unknown) =>
+              (error as { statusCode?: number }).statusCode === 400,
+          );
+        }
+      },
+    );
+    await check(
+      "persistência após reconectar e preservação de cronograma",
+      async () => {
+        const expected = await read();
+        await prisma.$disconnect();
+        assert.deepEqual(await read(), expected);
+        const saved = await prisma.lesson.findUniqueOrThrow({
+          where: { id: lesson.id },
+        });
+        assert.equal(saved.title, lesson.title);
+        assert.equal(saved.date.toISOString(), lesson.date.toISOString());
+        assert.equal(saved.scheduleTime, lesson.scheduleTime);
+        assert.equal(saved.status, lesson.status);
+        assert.equal(saved.classId, lesson.classId);
+        assert.equal(saved.teacherId, lesson.teacherId);
+      },
+    );
+    await check("presença, XP, Coins e ledgers inalterados", async () => {
+      assert.deepEqual(await snapshot(), before);
+    });
+    await check("aula sem conteúdo retorna listas vazias", async () => {
+      await write({ plannedTopics: [], taughtTopics: [], materials: [] });
+      const diary = await read();
+      assert.deepEqual(diary.plannedTopics, []);
+      assert.deepEqual(diary.taughtTopics, []);
+      assert.deepEqual(diary.materials, []);
+    });
+    await check(
+      "dois ajustes manuais de XP reconciliam ledger sem Coins",
+      async () => {
+        await updateStudentByDirector(
+          student.studentId,
+          { currentXp: 50 },
+          director.id,
+        );
+        await updateStudentByDirector(
+          student.studentId,
+          { currentXp: 80 },
+          director.id,
+        );
+        const after = await snapshot();
+        assert.equal(after.student.currentXp, 80);
+        assert.equal(after.points.length, 2);
+        assert(
+          after.points.every(
+            (point) => point.type === "MANUAL" && point.originReference,
+          ),
+        );
+        assert.notEqual(
+          after.points[0].originReference,
+          after.points[1].originReference,
+        );
+        assert.equal(
+          after.points.reduce((sum, point) => sum + point.amount, 0),
+          after.student.currentXp,
+        );
+        assert.equal(after.student.coinBalance, before.student.coinBalance);
+        assert.deepEqual(after.coins, before.coins);
+        assert.deepEqual(after.attendance, before.attendance);
+      },
+    );
+    console.log(`${passed} verificações passaram; nenhuma omitida.`);
+  } finally {
+    // Delete only this run's own fixtures, even after an assertion fails.
+    await prisma.course.deleteMany({ where: { id: `${prefix}_course` } });
+    await prisma.user.deleteMany({
+      where: {
+        id: {
+          in: [
+            "teacher",
+            "otherteacher",
+            "director",
+            "student",
+            "outsider",
+          ].map((role) => `${prefix}_${role}`),
+        },
+      },
+    });
+    await prisma.$disconnect();
+  }
+}
+run().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

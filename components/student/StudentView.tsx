@@ -31,99 +31,15 @@ import { AuctionSection, AuctionItem } from '@/components/auction/AuctionSection
 import { GamificationSection } from '@/components/student/GamificationSection';
 import { HeroAuctionFlashcard } from '@/components/auction/HeroAuctionFlashcard';
 
-export const DEFAULT_STUDENT_DASHBOARD_MOCK = {
-  student: {
-    id: 'stud_1',
-    name: 'João Pedro da Silva',
-    email: 'aluno@fuctura.com.br',
-    registrationNumber: 'FUC-2026-0891',
-    currentXp: 1240,
-    level: 4,
-    streak: 7,
-    rankingPosition: 4,
-    totalInClass: 15,
-    attendanceRate: 100,
-    coinBalance: 1240,
-    reservedCoins: 0,
-    availableCoins: 1240,
-  },
-  course: {
-    id: 'course_1',
-    name: 'Academia Java Full Stack',
-    code: 'JAVA-FS',
-    workloadHours: 96,
-  },
-  classInfo: {
-    id: 'class_1',
-    name: 'Java Fullstack - Turma Sábado',
-    code: 'JAVA-SAB-2026.1',
-    daysOfWeek: 'SAB',
-    scheduleTime: '08:30 - 12:30',
-    lessonsPerWeek: 1,
-    teacherName: 'Prof. Henrique Silveira',
-  },
-  progress: {
-    progressPercent: 44,
-    completedLessonsCount: 7,
-    totalLessonsCount: 16,
-  },
-  lastLesson: {
-    id: 'les_j7',
-    lessonNumber: 7,
-    title: 'Aprofundamento em POO: Encapsulamento Avançado',
-    date: '2026-03-21T00:00:00.000Z',
-    scheduleTime: '08:30 - 12:30',
-    plannedContent: 'Encapsulamento avançado, imutabilidade, records e boas práticas de modelagem.',
-    actualContent: 'Prática guiada de orientação a objetos avançada e imutabilidade no Java 21.',
-    materials: 'Slides Módulo 7 & Repositório GitHub Fuctura',
-    activities: 'Exercício de fixação entregue no prazo',
-  },
-  nextLesson: {
-    id: 'les_j8',
-    lessonNumber: 8,
-    title: 'Herança, Polimorfismo & Classes Abstratas',
-    date: '2026-03-28T00:00:00.000Z',
-    scheduleTime: '08:30 - 12:30',
-    plannedContent: 'Herança simples em Java, palavra-chave super, polimorfismo dinâmico e contratos abstratos.',
-    materials: 'Material preparatório Módulo 8',
-    activities: 'Projeto prático: Sistema de Folha de Pagamento',
-    attendanceStatus: null,
-    canRequestAttendance: true,
-  },
-  missedLessons: [],
-  ranking: [
-    { id: 'stud_2', name: 'Maria Eduarda Santos', xp: 1450, position: 1, isCurrentUser: false },
-    { id: 'stud_3', name: 'Lucas Albuquerque', xp: 1380, position: 2, isCurrentUser: false },
-    { id: 'stud_4', name: 'Beatriz Costa', xp: 1290, position: 3, isCurrentUser: false },
-    { id: 'stud_1', name: 'João Pedro da Silva', xp: 1240, position: 4, isCurrentUser: true },
-    { id: 'stud_5', name: 'Gabriel Martins', xp: 1100, position: 5, isCurrentUser: false },
-    { id: 'stud_6', name: 'Camila Fernandes', xp: 950, position: 6, isCurrentUser: false },
-  ],
-  badges: [
-    { id: 'bdg_1', name: 'Primeiro Acesso', description: 'Realizou o primeiro login no Portal do Aluno Fuctura', icon: 'Sparkles', xpReward: 50, conditionRule: 'Acessar o portal pela 1ª vez', isEarned: true, earnedAt: '2026-02-07T08:00:00.000Z' },
-    { id: 'bdg_2', name: 'Primeira Presença', description: 'Primeira presença confirmada em sala de aula', icon: 'CheckCircle', xpReward: 100, conditionRule: '1 presença confirmada', isEarned: true, earnedAt: '2026-02-07T12:30:00.000Z' },
-    { id: 'bdg_3', name: 'Foco Total (7 Aulas)', description: 'Manteve 7 presenças consecutivas sem nenhuma falta', icon: 'Flame', xpReward: 200, conditionRule: 'Streak de 7 aulas', isEarned: true, earnedAt: '2026-03-21T12:30:00.000Z' },
-    { id: 'bdg_4', name: 'Mestre da Frequência', description: '100% de frequência no encerramento do primeiro módulo', icon: 'Award', xpReward: 300, conditionRule: '100% de presença no módulo', isEarned: false, earnedAt: null },
-  ],
-  recentTransactions: [
-    { id: 'pt_1', amount: 50, type: 'ATTENDANCE', description: 'XP por presença confirmada (Aula 7)', originReference: 'ATTENDANCE_les_j7', createdAt: '2026-03-21T12:30:00.000Z' },
-    { id: 'pt_2', amount: 5, type: 'LOGIN', description: 'XP por Login Diário', originReference: 'DAILY_LOGIN_2026-03-21', createdAt: '2026-03-21T08:15:00.000Z' },
-    { id: 'pt_3', amount: 200, type: 'BADGE', description: 'Insígnia desbloqueada: Foco Total (7 Aulas)', originReference: 'BADGE_bdg_3', createdAt: '2026-03-21T12:31:00.000Z' },
-    { id: 'pt_4', amount: 50, type: 'ATTENDANCE', description: 'XP por presença confirmada (Aula 6)', originReference: 'ATTENDANCE_les_j6', createdAt: '2026-03-14T12:30:00.000Z' },
-    { id: 'pt_5', amount: 5, type: 'LOGIN', description: 'XP por Login Diário', originReference: 'DAILY_LOGIN_2026-03-14', createdAt: '2026-03-14T08:10:00.000Z' },
-  ],
-  lessons: [],
-};
-
 export const StudentView: React.FC = () => {
-  const [data, setData] = useState<any>(DEFAULT_STUDENT_DASHBOARD_MOCK);
-  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'auction' | 'lessons' | 'ranking' | 'badges'>('overview');
   const [requestingAttendance, setRequestingAttendance] = useState(false);
   const [attendanceSuccessMsg, setAttendanceSuccessMsg] = useState<string | null>(null);
   const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
-  const [studentBalance, setStudentBalance] = useState<number>(1240);
+  const [studentBalance, setStudentBalance] = useState<number>(0);
   const [directBidItem, setDirectBidItem] = useState<AuctionItem | null>(null);
 
   const handleOpenFlashcardBid = (item: AuctionItem) => {
@@ -132,51 +48,45 @@ export const StudentView: React.FC = () => {
   };
 
   const fetchDashboard = async () => {
+    setLoading(true);
+    setError(null);
     try {
       const res = await fetch('/api/student/dashboard');
-      if (res.ok) {
-        const json = await res.json();
-        setData(json);
-        if (json.student?.availableCoins !== undefined) {
-          setStudentBalance(json.student.availableCoins);
-        } else if (json.student?.coinBalance !== undefined) {
-          setStudentBalance(json.student.coinBalance);
-        }
-      } else {
-        setData(DEFAULT_STUDENT_DASHBOARD_MOCK);
-      }
-      setError(null);
-    } catch {
-      setData(DEFAULT_STUDENT_DASHBOARD_MOCK);
-      setError(null);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Erro ao carregar painel do aluno.');
+      setData(json);
+      setStudentBalance(json.student?.availableCoins ?? json.student?.coinBalance ?? 0);
+    } catch (err: unknown) {
+      setData(null);
+      setError(err instanceof Error ? err.message : 'Não foi possível carregar os dados.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    let isMounted = true;
-    fetch('/api/student/dashboard')
-      .then((res) => (res.ok ? res.json() : DEFAULT_STUDENT_DASHBOARD_MOCK))
-      .then((json) => {
-        if (isMounted && json) {
-          setData(json);
-          if (json.student?.availableCoins !== undefined) {
-            setStudentBalance(json.student.availableCoins);
-          } else if (json.student?.coinBalance !== undefined) {
-            setStudentBalance(json.student.coinBalance);
-          }
-        }
+    const controller = new AbortController();
+    fetch('/api/student/dashboard', { signal: controller.signal })
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Erro ao carregar painel do aluno.');
+        return json;
       })
-      .catch(() => {
-        if (isMounted) {
-          setData(DEFAULT_STUDENT_DASHBOARD_MOCK);
-        }
+      .then((json) => {
+        if (controller.signal.aborted) return;
+        setData(json);
+        setStudentBalance(json.student?.availableCoins ?? json.student?.coinBalance ?? 0);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return;
+        setData(null);
+        setError(err instanceof Error ? err.message : 'Não foi possível carregar os dados.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
       });
-
-    return () => {
-      isMounted = false;
-    };
+    return () => controller.abort();
   }, []);
 
   const handleMarkAttendance = async (lessonId: string) => {
@@ -796,6 +706,7 @@ export const StudentView: React.FC = () => {
                 return (
                   <div
                     key={les.id}
+                    data-testid={`lesson-${les.id}`}
                     className={`rounded-2xl border transition-all overflow-hidden ${
                       isCurrent
                         ? 'border-cyan-500/40 bg-slate-900/80 shadow-md shadow-cyan-500/10'
@@ -863,7 +774,7 @@ export const StudentView: React.FC = () => {
 
                     {isExpanded && (() => {
                       const plannedList: string[] =
-                        Array.isArray(les.plannedTopics) && les.plannedTopics.length > 0
+                        Array.isArray(les.plannedTopics)
                           ? les.plannedTopics
                           : les.plannedContent
                           ? les.plannedContent
@@ -873,7 +784,7 @@ export const StudentView: React.FC = () => {
                           : [];
 
                       const taughtList: string[] =
-                        Array.isArray(les.taughtTopics) && les.taughtTopics.length > 0
+                        Array.isArray(les.taughtTopics)
                           ? les.taughtTopics
                           : les.actualContent
                           ? les.actualContent

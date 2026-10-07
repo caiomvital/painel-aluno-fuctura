@@ -455,6 +455,7 @@ export const TeacherView: React.FC = () => {
             return (
               <div
                 key={cls.id}
+                data-testid={`class-${cls.id}`}
                 className="rounded-3xl border border-slate-800/80 bg-slate-900/60 overflow-hidden shadow-xl"
               >
                 {/* Header */}
@@ -580,6 +581,7 @@ export const TeacherView: React.FC = () => {
                             cls.lessons.map((lesson: any) => (
                               <div
                                 key={lesson.id}
+                                data-testid={`lesson-${lesson.id}`}
                                 className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl border border-slate-800/70 bg-slate-900/60 text-xs hover:border-slate-700 transition-colors gap-3"
                               >
                                 <div className="min-w-0">
@@ -664,7 +666,8 @@ export const TeacherView: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-5">
               {classes.map((cls: any) => (
-                <div key={cls.id} className="rounded-2xl border border-slate-800/80 bg-slate-950/60 p-5 space-y-4">
+                <div key={cls.id}
+                data-testid={`class-${cls.id}`} className="rounded-2xl border border-slate-800/80 bg-slate-950/60 p-5 space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                     <div>
                       <h4 className="text-sm font-bold text-white">{cls.name}</h4>

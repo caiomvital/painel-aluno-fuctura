@@ -1106,6 +1106,7 @@ export const DirectorView: React.FC = () => {
             {(data.classes || []).map((cls: any) => (
               <div
                 key={cls.id}
+                data-testid={`class-${cls.id}`}
                 className="rounded-3xl border border-slate-800/80 bg-slate-900/70 p-5 flex flex-col justify-between backdrop-blur-md shadow-xl"
               >
                 <div>
@@ -1185,6 +1186,7 @@ export const DirectorView: React.FC = () => {
                     selectedClassForLessons.lessons.map((lesson: any) => (
                       <div
                         key={lesson.id}
+                                data-testid={`lesson-${lesson.id}`}
                         className="p-4 rounded-2xl border border-slate-800/80 bg-slate-950/60 text-xs hover:border-slate-700 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                       >
                         <div className="space-y-1.5 min-w-0">

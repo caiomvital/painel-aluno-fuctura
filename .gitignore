@@ -5,3 +5,8 @@ coverage/
 *.log
 .env*
 !.env.example
+
+*.tsbuildinfo
+playwright-report/
+test-results/
+blob-report/

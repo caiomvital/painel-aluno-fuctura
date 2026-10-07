@@ -7,7 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "clean": "next clean"
+    "clean": "next clean",
+    "test:unit": "bun test tests/unit",
+    "test:integration": "bun scripts/run-tests.ts integration",
+    "test:e2e": "bun scripts/run-tests.ts e2e",
+    "test:all": "bun scripts/run-tests.ts all",
+    "test:supabase": "bun scripts/check-supabase.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -27,9 +32,11 @@
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "1.58.2",
     "@tailwindcss/postcss": "4.1.11",
     "@tailwindcss/typography": "^0.5.19",
     "@types/bcryptjs": "^3.0.0",
+    "@types/bun": "1.3.10",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

@@ -303,12 +303,12 @@ export const LessonDiaryModal: React.FC<LessonDiaryModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
-      <div className="relative w-full max-w-3xl rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden my-8 max-h-[90vh] flex flex-col">
+      <div role="dialog" aria-modal="true" aria-labelledby="lesson-diary-title" className="relative w-full min-w-0 max-w-3xl rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden my-8 max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="p-6 bg-gradient-to-r from-slate-900 via-slate-800/90 to-slate-900 border-b border-slate-800 shrink-0">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
+        <div className="p-3 sm:p-6 bg-gradient-to-r from-slate-900 via-slate-800/90 to-slate-900 border-b border-slate-800 shrink-0">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[10px] font-bold tracking-widest uppercase text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 px-2.5 py-0.5 rounded-full">
                   Diário de Aula &bull; MVP
                 </span>
@@ -318,7 +318,7 @@ export const LessonDiaryModal: React.FC<LessonDiaryModalProps> = ({
                   </span>
                 )}
               </div>
-              <h2 className="text-xl sm:text-2xl font-black text-white mt-1">
+              <h2 id="lesson-diary-title" className="text-xl sm:text-2xl font-black text-white mt-1">
                 {diary ? `Aula ${diary.lessonNumber} — ${diary.title}` : 'Carregando aula...'}
               </h2>
               {diary && (
@@ -346,6 +346,7 @@ export const LessonDiaryModal: React.FC<LessonDiaryModalProps> = ({
                 onClick={refreshDiary}
                 disabled={loading}
                 title="Recarregar dados do servidor"
+                aria-label="Recarregar dados do servidor"
                 className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors cursor-pointer"
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-cyan-400' : ''}`} />
@@ -353,6 +354,7 @@ export const LessonDiaryModal: React.FC<LessonDiaryModalProps> = ({
 
               <button
                 onClick={onClose}
+                aria-label="Fechar diário"
                 className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -425,7 +427,7 @@ export const LessonDiaryModal: React.FC<LessonDiaryModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-1">
+        <div className="p-3 sm:p-6 overflow-y-auto space-y-6 flex-1">
           {loading ? (
             <div className="p-12 text-center text-xs text-slate-400 flex flex-col items-center gap-3">
               <RefreshCw className="w-6 h-6 animate-spin text-cyan-400" />
@@ -455,11 +457,12 @@ export const LessonDiaryModal: React.FC<LessonDiaryModalProps> = ({
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
+                        aria-label="Novo tópico planejado"
                         value={newPlannedTopic}
                         onChange={(e) => setNewPlannedTopic(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleAddPlannedTopic()}
                         placeholder="Ex: 1. O que é herança, A palavra extends..."
-                        className="flex-1 rounded-xl border border-slate-800 bg-slate-950/80 px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:border-cyan-500 focus:outline-none"
+                        className="min-w-0 flex-1 rounded-xl border border-slate-800 bg-slate-950/80 px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:border-cyan-500 focus:outline-none"
                       />
                       <button
                         onClick={handleAddPlannedTopic}
@@ -490,10 +493,11 @@ export const LessonDiaryModal: React.FC<LessonDiaryModalProps> = ({
                             {editingPlannedIndex === idx ? (
                               <input
                                 type="text"
+                                aria-label="Editar tópico planejado"
                                 value={editingPlannedValue}
                                 onChange={(e) => setEditingPlannedValue(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleSaveEditPlanned(idx)}
-                                className="flex-1 rounded-lg border border-cyan-500/60 bg-slate-900 px-2.5 py-1 text-xs text-white focus:outline-none"
+                                className="min-w-0 flex-1 rounded-lg border border-cyan-500/60 bg-slate-900 px-2.5 py-1 text-xs text-white focus:outline-none"
                                 autoFocus
                               />
                             ) : (
@@ -573,11 +577,12 @@ export const LessonDiaryModal: React.FC<LessonDiaryModalProps> = ({
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
+                        aria-label="Novo tópico ministrado"
                         value={newTaughtTopic}
                         onChange={(e) => setNewTaughtTopic(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleAddTaughtTopic()}
                         placeholder="Ex: Exercício prático com classes Pessoa e Aluno..."
-                        className="flex-1 rounded-xl border border-slate-800 bg-slate-950/80 px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
+                        className="min-w-0 flex-1 rounded-xl border border-slate-800 bg-slate-950/80 px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
                       />
                       <button
                         onClick={handleAddTaughtTopic}
@@ -608,10 +613,11 @@ export const LessonDiaryModal: React.FC<LessonDiaryModalProps> = ({
                             {editingTaughtIndex === idx ? (
                               <input
                                 type="text"
+                                aria-label="Editar tópico ministrado"
                                 value={editingTaughtValue}
                                 onChange={(e) => setEditingTaughtValue(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleSaveEditTaught(idx)}
-                                className="flex-1 rounded-lg border border-emerald-500/60 bg-slate-900 px-2.5 py-1 text-xs text-white focus:outline-none"
+                                className="min-w-0 flex-1 rounded-lg border border-emerald-500/60 bg-slate-900 px-2.5 py-1 text-xs text-white focus:outline-none"
                                 autoFocus
                               />
                             ) : (
@@ -684,9 +690,10 @@ export const LessonDiaryModal: React.FC<LessonDiaryModalProps> = ({
                       </span>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label className="text-[10px] text-slate-400 block mb-1">Título do Material *</label>
+                          <label htmlFor="material-title" className="text-[10px] text-slate-400 block mb-1">Título do Material *</label>
                           <input
                             type="text"
+                            id="material-title"
                             value={newMaterialTitle}
                             onChange={(e) => setNewMaterialTitle(e.target.value)}
                             placeholder="Ex: Código da aula — GitHub"
@@ -694,9 +701,10 @@ export const LessonDiaryModal: React.FC<LessonDiaryModalProps> = ({
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] text-slate-400 block mb-1">URL (http:// ou https://) *</label>
+                          <label htmlFor="material-url" className="text-[10px] text-slate-400 block mb-1">URL (http:// ou https://) *</label>
                           <input
                             type="url"
+                            id="material-url"
                             value={newMaterialUrl}
                             onChange={(e) => setNewMaterialUrl(e.target.value)}
                             placeholder="https://github.com/..."
@@ -705,9 +713,10 @@ export const LessonDiaryModal: React.FC<LessonDiaryModalProps> = ({
                         </div>
                       </div>
                       <div>
-                        <label className="text-[10px] text-slate-400 block mb-1">Descrição Opcional</label>
+                        <label htmlFor="material-description" className="text-[10px] text-slate-400 block mb-1">Descrição Opcional</label>
                         <input
                           type="text"
+                          id="material-description"
                           value={newMaterialDescription}
                           onChange={(e) => setNewMaterialDescription(e.target.value)}
                           placeholder="Ex: Repositório com as classes e exemplos de herança"
@@ -742,6 +751,7 @@ export const LessonDiaryModal: React.FC<LessonDiaryModalProps> = ({
                             <div className="space-y-2.5">
                               <input
                                 type="text"
+                                aria-label="Editar título do material"
                                 value={editingMaterialTitle}
                                 onChange={(e) => setEditingMaterialTitle(e.target.value)}
                                 placeholder="Título"
@@ -749,6 +759,7 @@ export const LessonDiaryModal: React.FC<LessonDiaryModalProps> = ({
                               />
                               <input
                                 type="url"
+                                aria-label="Editar URL do material"
                                 value={editingMaterialUrl}
                                 onChange={(e) => setEditingMaterialUrl(e.target.value)}
                                 placeholder="URL"
@@ -756,6 +767,7 @@ export const LessonDiaryModal: React.FC<LessonDiaryModalProps> = ({
                               />
                               <input
                                 type="text"
+                                aria-label="Editar descrição do material"
                                 value={editingMaterialDescription}
                                 onChange={(e) => setEditingMaterialDescription(e.target.value)}
                                 placeholder="Descrição opcional"
@@ -847,7 +859,7 @@ export const LessonDiaryModal: React.FC<LessonDiaryModalProps> = ({
         </div>
 
         {/* Footer with Persistent Save Button */}
-        <div className="p-4 bg-slate-950/80 border-t border-slate-800 flex items-center justify-between shrink-0">
+        <div className="p-3 sm:p-4 bg-slate-950/80 border-t border-slate-800 flex flex-wrap gap-2 items-center justify-between shrink-0">
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"

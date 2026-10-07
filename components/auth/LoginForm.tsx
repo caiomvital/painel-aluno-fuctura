@@ -63,13 +63,15 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">E-mail Institucional</label>
+            <label htmlFor="login-email" className="block text-xs font-semibold text-slate-300 mb-1.5">E-mail Institucional</label>
             <div className="relative">
               <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
                 <Mail className="h-4 w-4" />
               </div>
               <input
+                id="login-email"
                 type="email"
+                autoComplete="username"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -81,7 +83,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-semibold text-slate-300">Senha de Acesso</label>
+              <label htmlFor="login-password" className="text-xs font-semibold text-slate-300">Senha de Acesso</label>
               <span className="text-[11px] text-slate-500">Suporte pedagógico</span>
             </div>
             <div className="relative">
@@ -89,7 +91,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
                 <Lock className="h-4 w-4" />
               </div>
               <input
+                id="login-password"
                 type="password"
+                autoComplete="current-password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
