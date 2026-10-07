@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#090d16" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="50%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#4f46e5" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="url(#bgGrad)" />
+
+  <!-- Geometric frame -->
+  <circle cx="256" cy="256" r="180" fill="none" stroke="#1e293b" stroke-width="4" stroke-dasharray="16 12" />
+
+  <!-- Modern Fuctura 'F' Monogram -->
+  <rect x="156" y="130" width="48" height="252" rx="24" fill="url(#primaryGrad)" />
+  <path d="M 156 154 L 330 154 C 344 154 354 165 354 180 C 354 195 344 206 330 206 L 204 206 L 156 154 Z" fill="url(#primaryGrad)" />
+  <path d="M 180 236 L 290 236 C 304 236 314 247 314 262 C 314 277 304 288 290 288 L 180 288 Z" fill="url(#accentGrad)" />
+
+  <!-- Innovation Node -->
+  <circle cx="340" cy="262" r="16" fill="#38bdf8" />
+  <circle cx="340" cy="262" r="8" fill="#ffffff" />
+
+  <!-- Growth base -->
+  <rect x="236" y="336" width="118" height="20" rx="10" fill="#10b981" opacity="0.9" />
+</svg>

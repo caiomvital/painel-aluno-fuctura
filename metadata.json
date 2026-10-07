@@ -1,0 +1,6 @@
+{
+  "name": "Fuctura Tecnologia - Painel do Aluno",
+  "description": "Plataforma educacional para alunos, professores e diretores da Fuctura Tecnologia com gestão de turmas, aulas, presença e gamificação.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

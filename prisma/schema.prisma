@@ -1,0 +1,470 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ALUNO
+  PROFESSOR
+  DIRETOR
+}
+
+enum ClassStatus {
+  ACTIVE
+  FINISHED
+  UPCOMING
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  DROPPED
+}
+
+enum LessonStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum AttendanceStatus {
+  PENDING
+  PRESENT
+  ABSENT
+  EXCUSED
+}
+
+enum PointType {
+  LOGIN
+  ATTENDANCE
+  ACTIVITY
+  MANUAL
+}
+
+enum ContentType {
+  PLANNED
+  TAUGHT
+  COMPLEMENTARY
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  profile  Profile?
+  student  Student?
+  teacher  Teacher?
+  director Director?
+
+  @@index([email])
+  @@index([role])
+}
+
+model Profile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  bio       String?
+  phone     String?
+  document  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Student {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  registrationNumber String   @unique // Matrícula
+  currentXp          Int      @default(0)
+  level              Int      @default(1)
+  coinBalance        Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrollments       Enrollment[]
+  attendances       Attendance[]
+  pointTransactions PointTransaction[]
+  coinTransactions  CoinTransaction[]
+  streak            Streak?
+  badges            StudentBadge[]
+  auctionBids       AuctionBid[]
+  coinReservations  CoinReservation[]
+  leadingItems      AuctionItem[]      @relation("ItemHighestBidder")
+
+  @@index([userId])
+  @@index([registrationNumber])
+}
+
+model Teacher {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  specialty String?
+  biography String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classes Class[]
+  lessons Lesson[]
+
+  @@index([userId])
+}
+
+model Director {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  department String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Course {
+  id                   String      @id @default(cuid())
+  name                 String
+  code                 String      @unique
+  description          String?
+  workloadHours        Int         @default(120)
+  status               ClassStatus @default(ACTIVE)
+  category             String?
+  partnerCertification String?
+  modality             String?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  classes Class[]
+  modules CourseModule[]
+
+  @@index([code])
+}
+
+model CourseModule {
+  id            String   @id @default(cuid())
+  courseId      String
+  orderIndex    Int      @default(1)
+  title         String
+  description   String?
+  workloadHours Int      @default(24)
+  topics        String[] @default([])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+  @@index([orderIndex])
+}
+
+model Class {
+  id              String      @id @default(cuid())
+  name            String
+  code            String      @unique
+  courseId        String
+  teacherId       String?
+  startDate       DateTime
+  endDate         DateTime?
+  daysOfWeek      String // ex: "TER,QUI" ou "SAB"
+  scheduleTime    String // ex: "19:00 - 22:00" ou "08:30 - 12:30"
+  durationMinutes Int         @default(180)
+  lessonsPerWeek  Int         @default(2) // Quantidade de aulas por semana configurável
+  status          ClassStatus @default(ACTIVE)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teacher     Teacher?     @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  enrollments Enrollment[]
+  lessons     Lesson[]
+
+  @@index([courseId])
+  @@index([teacherId])
+  @@index([status])
+}
+
+model Enrollment {
+  id         String           @id @default(cuid())
+  studentId  String
+  classId    String
+  status     EnrollmentStatus @default(ACTIVE)
+  enrolledAt DateTime         @default(now())
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, classId])
+  @@index([studentId])
+  @@index([classId])
+}
+
+model Lesson {
+  id              String       @id @default(cuid())
+  classId         String
+  teacherId       String?
+  lessonNumber    Int
+  title           String
+  date            DateTime
+  scheduleTime    String
+  durationMinutes Int          @default(180)
+  plannedContent  String // O que o professor planeja abordar
+  actualContent   String? // O que efetivamente foi trabalhado
+  materials       String?
+  activities      String?
+  observations    String?
+  status          LessonStatus @default(SCHEDULED)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  class       Class           @relation(fields: [classId], references: [id], onDelete: Cascade)
+  teacher     Teacher?        @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  contents    LessonContent[]
+  attendances Attendance[]
+
+  @@index([classId])
+  @@index([teacherId])
+  @@index([date])
+  @@index([status])
+}
+
+model LessonContent {
+  id          String      @id @default(cuid())
+  lessonId    String
+  title       String
+  description String?
+  contentType ContentType @default(PLANNED)
+  orderIndex  Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId])
+}
+
+model Attendance {
+  id                  String           @id @default(cuid())
+  lessonId            String
+  studentId           String
+  status              AttendanceStatus @default(PENDING)
+  requestedAt         DateTime         @default(now())
+  confirmedAt         DateTime?
+  confirmedById       String? // ID do usuário professor que confirmou
+  rejectionReason     String?
+  justificationReason String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  lesson  Lesson  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([lessonId, studentId])
+  @@index([lessonId])
+  @@index([studentId])
+  @@index([status])
+}
+
+model PointTransaction {
+  id              String    @id @default(cuid())
+  studentId       String
+  amount          Int
+  type            PointType
+  description     String
+  originReference String? // ex: lessonId ou "DAILY_LOGIN_2026-09-29"
+  createdAt       DateTime  @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, originReference])
+  @@index([studentId])
+  @@index([createdAt])
+  @@index([type])
+}
+
+model Streak {
+  id                   String    @id @default(cuid())
+  studentId            String    @unique
+  currentStreak        Int       @default(0)
+  maxStreak            Int       @default(0)
+  lastAttendedLessonId String?
+  lastAttendedDate     DateTime?
+  updatedAt            DateTime  @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+}
+
+model Badge {
+  id            String   @id @default(cuid())
+  code          String   @unique // FIRST_LOGIN, FIRST_ATTENDANCE, STREAK_7, LESSONS_10
+  name          String
+  description   String
+  icon          String
+  conditionRule String
+  xpReward      Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  studentBadges StudentBadge[]
+
+  @@index([code])
+}
+
+model StudentBadge {
+  id        String   @id @default(cuid())
+  studentId String
+  badgeId   String
+  earnedAt  DateTime @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  badge   Badge   @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, badgeId])
+  @@index([studentId])
+  @@index([badgeId])
+}
+
+model GamificationRule {
+  id          String   @id @default(cuid())
+  code        String   @unique // XP_LOGIN, XP_ATTENDANCE
+  name        String
+  xpValue     Int      @default(10)
+  description String?
+  isActive    Boolean  @default(true)
+  updatedAt   DateTime @updatedAt
+
+  @@index([code])
+}
+
+// ==========================================
+// MÓDULO DE ECONOMIA (COINS) E LEILÃO
+// ==========================================
+
+enum CoinTransactionType {
+  EARNED
+  SPENT
+  MANUAL
+  BASELINE
+}
+
+enum AuctionStatus {
+  ACTIVE
+  PAUSED
+  FINISHED
+}
+
+enum ReservationStatus {
+  ACTIVE
+  RELEASED
+  CONSUMED
+}
+
+model CoinTransaction {
+  id              String              @id @default(cuid())
+  studentId       String
+  type            CoinTransactionType
+  amount          Int
+  description     String
+  originReference String?
+  createdAt       DateTime            @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, originReference])
+  @@index([studentId, createdAt])
+  @@index([type])
+}
+
+model AuctionSeason {
+  id              String        @id @default(cuid())
+  title           String
+  description     String?
+  status          AuctionStatus @default(ACTIVE)
+  minBidIncrement Int           @default(50)
+  startsAt        DateTime      @default(now())
+  endsAt          DateTime
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  items AuctionItem[]
+}
+
+model AuctionItem {
+  id                String        @id @default(cuid())
+  seasonId          String
+  title             String
+  category          String
+  description       String
+  imageUrl          String?
+  iconType          String        @default("keyboard")
+  startingBid       Int           @default(100)
+  currentBid        Int           @default(100)
+  minNextBid        Int           @default(150)
+  marketValue       String        @default("R$ 0,00")
+  isFeatured        Boolean       @default(false)
+  highestBidderId   String?
+  highestBidderName String?
+  totalBids         Int           @default(0)
+  status            AuctionStatus @default(ACTIVE)
+  startsAt          DateTime      @default(now())
+  endsAt            DateTime
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  season        AuctionSeason     @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  highestBidder Student?          @relation("ItemHighestBidder", fields: [highestBidderId], references: [id], onDelete: SetNull)
+  bids          AuctionBid[]
+  reservations  CoinReservation[]
+
+  @@index([seasonId])
+  @@index([status])
+  @@index([highestBidderId])
+}
+
+model AuctionBid {
+  id         String   @id @default(cuid())
+  itemId     String
+  studentId  String
+  amount     Int
+  bidderName String
+  createdAt  DateTime @default(now())
+
+  item    AuctionItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  student Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([itemId, createdAt])
+  @@index([studentId])
+}
+
+model CoinReservation {
+  id        String            @id @default(cuid())
+  studentId String
+  itemId    String
+  amount    Int
+  status    ReservationStatus @default(ACTIVE)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  student Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  item    AuctionItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, status])
+  @@index([itemId, status])
+}

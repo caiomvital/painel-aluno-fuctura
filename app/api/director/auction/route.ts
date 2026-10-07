@@ -1,0 +1,131 @@
+// app/api/director/auction/route.ts
+import { NextResponse } from 'next/server';
+import { getSession } from '@/lib/auth';
+import {
+  getAuctionOverview,
+  createAuctionItemByDirector,
+  updateAuctionItemByDirector,
+  deleteAuctionItemByDirector,
+  updateAuctionSettingsByDirector,
+} from '@/lib/auction-service';
+
+export async function GET() {
+  try {
+    const overview = await getAuctionOverview();
+    return NextResponse.json({
+      items: overview.items,
+      settings: overview.settings,
+    });
+  } catch (err: any) {
+    console.error('Erro ao consultar leilão da diretoria:', err);
+    return NextResponse.json(
+      { error: err.message || 'Erro ao consultar leilão.' },
+      { status: 500 }
+    );
+  }
+}
+
+// Criar novo item de leilão ou atualizar configurações globais
+export async function POST(req: Request) {
+  const session = await getSession();
+  if (!session || session.role !== 'DIRETOR') {
+    return NextResponse.json({ error: 'Acesso restrito à diretoria.' }, { status: 403 });
+  }
+
+  try {
+    const body = await req.json();
+
+    // Se for atualização de configurações da temporada/datas do leilão
+    if (body.action === 'UPDATE_SETTINGS') {
+      const updated = await updateAuctionSettingsByDirector({
+        seasonTitle: body.seasonTitle,
+        status: body.status,
+        endDate: body.endDate,
+        minBidIncrement: body.minBidIncrement ? Number(body.minBidIncrement) : undefined,
+      });
+
+      if (!updated) {
+        return NextResponse.json(
+          { error: 'Temporada não encontrada para atualização.' },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({ success: true, settings: updated });
+    }
+
+    // Criar novo item
+    const { title, category, description, marketValue, minNextBid, iconType, isFeatured, endsInSeconds } = body;
+    if (!title || !category || !description) {
+      return NextResponse.json({ error: 'Título, categoria e descrição são obrigatórios.' }, { status: 400 });
+    }
+
+    const newItem = await createAuctionItemByDirector({
+      title,
+      category,
+      description,
+      marketValue: marketValue || 'R$ 0,00',
+      minNextBid: Number(minNextBid) || 100,
+      iconType: iconType || 'keyboard',
+      isFeatured: !!isFeatured,
+      endsInSeconds: Number(endsInSeconds) || 3600 * 48,
+    });
+
+    return NextResponse.json({ success: true, item: newItem });
+  } catch (err: any) {
+    console.error('Erro ao processar item do leilão:', err);
+    return NextResponse.json({ error: err.message || 'Erro ao processar item do leilão.' }, { status: 500 });
+  }
+}
+
+// Atualizar item existente
+export async function PUT(req: Request) {
+  const session = await getSession();
+  if (!session || session.role !== 'DIRETOR') {
+    return NextResponse.json({ error: 'Acesso restrito à diretoria.' }, { status: 403 });
+  }
+
+  try {
+    const body = await req.json();
+    const { id, ...data } = body;
+    if (!id) {
+      return NextResponse.json({ error: 'ID do item é obrigatório.' }, { status: 400 });
+    }
+
+    const updated = await updateAuctionItemByDirector(id, data);
+    if (!updated) {
+      return NextResponse.json({ error: 'Item não encontrado.' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, item: updated });
+  } catch (err: any) {
+    console.error('Erro ao atualizar item do leilão:', err);
+    return NextResponse.json({ error: err.message || 'Erro ao atualizar item do leilão.' }, { status: 500 });
+  }
+}
+
+// Remover item do leilão
+export async function DELETE(req: Request) {
+  const session = await getSession();
+  if (!session || session.role !== 'DIRETOR') {
+    return NextResponse.json({ error: 'Acesso restrito à diretoria.' }, { status: 403 });
+  }
+
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+    if (!id) {
+      return NextResponse.json({ error: 'ID é obrigatório.' }, { status: 400 });
+    }
+
+    const removed = await deleteAuctionItemByDirector(id);
+    if (!removed) {
+      return NextResponse.json({ error: 'Item não encontrado para remoção.' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, message: 'Item removido do leilão com sucesso.' });
+  } catch (err: any) {
+    console.error('Erro ao remover item do leilão:', err);
+    return NextResponse.json({ error: err.message || 'Erro ao remover item do leilão.' }, { status: 500 });
+  }
+}
