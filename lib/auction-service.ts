@@ -240,6 +240,7 @@ export async function seedInitialAuctionData() {
         iconType: item.iconType,
         marketValue: item.marketValue,
         isFeatured: item.isFeatured,
+        endsAt: item.endsAt,
       },
       create: {
         id: item.id,
@@ -278,6 +279,25 @@ export async function seedInitialAuctionData() {
             studentId: item.highestBidderId,
             amount: item.currentBid,
             status: ReservationStatus.ACTIVE,
+          },
+        });
+      }
+
+      const existingBid = await prisma.auctionBid.findFirst({
+        where: {
+          itemId: upserted.id,
+          studentId: item.highestBidderId,
+        },
+      });
+
+      if (!existingBid) {
+        await prisma.auctionBid.create({
+          data: {
+            itemId: upserted.id,
+            studentId: item.highestBidderId,
+            amount: item.currentBid,
+            bidderName: item.highestBidderName || 'Aluno Fuctura',
+            createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2),
           },
         });
       }

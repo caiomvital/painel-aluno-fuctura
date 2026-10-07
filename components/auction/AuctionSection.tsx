@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Gavel,
   Zap,
@@ -205,46 +205,48 @@ export const AuctionSection: React.FC<AuctionSectionProps> = ({
     availableCoins: propAvailableCoins ?? userBalance,
   });
   const currentBalance = studentCoins.availableCoins;
-  const [prevExternal, setPrevExternal] = useState<AuctionItem | null>(null);
 
-  const loadAuctionData = async () => {
-    try {
-      const res = await fetch('/api/auction');
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.items && Array.isArray(data.items)) {
+  const loadAuctionData = useCallback(() => {
+    fetch('/api/auction')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data) return;
+        if (data.items && Array.isArray(data.items)) {
           setItems(data.items);
         }
-        if (data?.studentCoins) {
+        if (data.studentCoins) {
           setStudentCoins({
             coinBalance: data.studentCoins.coinBalance ?? 0,
             reservedCoins: data.studentCoins.reservedCoins ?? 0,
             availableCoins: data.studentCoins.availableCoins ?? 0,
           });
         }
-        if (data?.myBids && Array.isArray(data.myBids)) {
+        if (data.myBids && Array.isArray(data.myBids)) {
           setMyBids(data.myBids);
         }
-        if (data?.coinTransactions && Array.isArray(data.coinTransactions)) {
+        if (data.coinTransactions && Array.isArray(data.coinTransactions)) {
           setCoinTransactions(data.coinTransactions);
         }
-      }
-    } catch {
-      // Falha silenciosa de conexão mantendo dados locais
-    }
-  };
+      })
+      .catch(() => {
+        // Falha silenciosa de conexão mantendo dados locais
+      });
+  }, []);
 
   useEffect(() => {
     loadAuctionData();
-  }, []);
+  }, [loadAuctionData]);
 
-  if (externalOpenItem && externalOpenItem !== prevExternal) {
-    setPrevExternal(externalOpenItem);
-    setSelectedItem(externalOpenItem);
-    setBidAmount(externalOpenItem.minNextBid);
-    setBiddingSuccess(null);
-    setBidError(null);
-  }
+  useEffect(() => {
+    if (!externalOpenItem) return;
+    const timer = setTimeout(() => {
+      setSelectedItem(externalOpenItem);
+      setBidAmount(externalOpenItem.minNextBid);
+      setBiddingSuccess(null);
+      setBidError(null);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [externalOpenItem]);
 
   // Live countdown tick
   useEffect(() => {

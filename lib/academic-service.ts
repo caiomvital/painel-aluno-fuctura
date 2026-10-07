@@ -421,7 +421,10 @@ export async function getStudentDashboard(userId: string) {
         status: l.status,
         plannedContent: l.plannedContent,
         actualContent: l.actualContent,
+        plannedTopics: extractPlannedTopics(l),
+        taughtTopics: extractTaughtTopics(l),
         materials: l.materials,
+        supportMaterials: parseMaterialsList(l.materials),
         activities: l.activities,
         attendanceStatus: att ? att.status : null,
         teacherName: teacherUser ? teacherUser.name : 'Professor Fuctura',
@@ -517,8 +520,22 @@ export async function getTeacherDashboard(userId: string) {
             scheduleTime: nextLesson.scheduleTime,
             plannedContent: nextLesson.plannedContent,
             actualContent: nextLesson.actualContent,
+            plannedTopics: extractPlannedTopics(nextLesson),
+            taughtTopics: extractTaughtTopics(nextLesson),
+            materials: parseMaterialsList(nextLesson.materials),
           }
         : null,
+      lessons: cls.lessons.map((l) => ({
+        id: l.id,
+        lessonNumber: l.lessonNumber,
+        title: l.title,
+        date: l.date.toISOString(),
+        scheduleTime: l.scheduleTime,
+        status: l.status,
+        plannedTopics: extractPlannedTopics(l),
+        taughtTopics: extractTaughtTopics(l),
+        materials: parseMaterialsList(l.materials),
+      })),
     };
   });
 
@@ -610,6 +627,10 @@ export async function getDirectorDashboard(userId: string) {
       course: true,
       teacher: { include: { user: true } },
       enrollments: { where: { status: 'ACTIVE' } },
+      lessons: {
+        include: { contents: true },
+        orderBy: { lessonNumber: 'asc' },
+      },
     },
     orderBy: { code: 'asc' },
   });
@@ -673,6 +694,17 @@ export async function getDirectorDashboard(userId: string) {
       enrolledCount: cls.enrollments.length,
       startDate: cls.startDate.toISOString(),
       endDate: cls.endDate ? cls.endDate.toISOString() : null,
+      lessons: cls.lessons.map((l) => ({
+        id: l.id,
+        lessonNumber: l.lessonNumber,
+        title: l.title,
+        date: l.date.toISOString(),
+        scheduleTime: l.scheduleTime,
+        status: l.status,
+        plannedTopics: extractPlannedTopics(l),
+        taughtTopics: extractTaughtTopics(l),
+        materials: parseMaterialsList(l.materials),
+      })),
     })),
     courses: courses.map((c) => ({
       id: c.id,
@@ -1710,4 +1742,426 @@ export async function updateGamificationRuleByDirector(ruleCode: string, xpValue
     description: updated.description,
     isActive: updated.isActive,
   };
+}
+
+// ==========================================
+// 16. DIÁRIO DE AULA & MATERIAIS DE APOIO (MARCO 7)
+// ==========================================
+
+export interface SupportMaterialItem {
+  id: string;
+  title: string;
+  url: string;
+  description?: string;
+}
+
+export interface LessonDiaryData {
+  id: string;
+  classId: string;
+  className: string;
+  classCode: string;
+  teacherId: string | null;
+  teacherName: string;
+  lessonNumber: number;
+  title: string;
+  date: string;
+  scheduleTime: string;
+  status: string;
+  plannedTopics: string[];
+  taughtTopics: string[];
+  materials: SupportMaterialItem[];
+}
+
+export function parseTopicsList(raw: string | null | undefined): string[] {
+  if (!raw || typeof raw !== 'string') return [];
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed === 'Nenhum tópico planejado registrado.') return [];
+
+  if (trimmed.includes('\n')) {
+    return trimmed
+      .split('\n')
+      .map((line) => line.replace(/^(\d+[\.\)]\s*|[-•*]\s*)/, '').trim())
+      .filter((line) => line.length > 0);
+  }
+
+  if (trimmed.includes(',')) {
+    return trimmed
+      .split(',')
+      .map((part) => part.replace(/^(\d+[\.\)]\s*|[-•*]\s*)/, '').trim())
+      .filter((p) => p.length > 0);
+  }
+
+  return [trimmed.replace(/^(\d+[\.\)]\s*|[-•*]\s*)/, '')];
+}
+
+export function parseMaterialsList(raw: string | null | undefined): SupportMaterialItem[] {
+  if (!raw || typeof raw !== 'string') return [];
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter((item) => item && typeof item.title === 'string' && typeof item.url === 'string')
+        .map((item) => ({
+          id: item.id || `mat_${randomUUID()}`,
+          title: String(item.title).trim(),
+          url: String(item.url).trim(),
+          description: item.description ? String(item.description).trim() : undefined,
+        }));
+    }
+  } catch {
+    // Texto legado não JSON - não gerar link falso
+  }
+  return [];
+}
+
+export function extractPlannedTopics(lesson: {
+  plannedContent?: string | null;
+  contents?: Array<{ contentType: string; title: string; description?: string | null; orderIndex: number }>;
+}): string[] {
+  if (lesson.contents && Array.isArray(lesson.contents)) {
+    const planned = lesson.contents
+      .filter((c) => c.contentType === 'PLANNED')
+      .sort((a, b) => a.orderIndex - b.orderIndex);
+    if (planned.length > 0) {
+      if (planned.length === 1 && planned[0].title.startsWith('Conteúdo Programático:')) {
+        return parseTopicsList(planned[0].description || lesson.plannedContent);
+      }
+      return planned.map((c) => c.title.trim()).filter((t) => t.length > 0);
+    }
+  }
+  return parseTopicsList(lesson.plannedContent);
+}
+
+export function extractTaughtTopics(lesson: {
+  actualContent?: string | null;
+  contents?: Array<{ contentType: string; title: string; description?: string | null; orderIndex: number }>;
+}): string[] {
+  if (lesson.contents && Array.isArray(lesson.contents)) {
+    const taught = lesson.contents
+      .filter((c) => c.contentType === 'TAUGHT')
+      .sort((a, b) => a.orderIndex - b.orderIndex);
+    if (taught.length > 0) {
+      if (taught.length === 1 && taught[0].title.startsWith('Conteúdo Ministrado em Sala:')) {
+        return parseTopicsList(taught[0].description || lesson.actualContent);
+      }
+      return taught.map((c) => c.title.trim()).filter((t) => t.length > 0);
+    }
+  }
+  return lesson.actualContent ? parseTopicsList(lesson.actualContent) : [];
+}
+
+export async function getLessonWithDiary(
+  lessonId: string,
+  sessionUser: { id: string; role: string; studentId?: string; teacherId?: string; directorId?: string }
+): Promise<LessonDiaryData> {
+  const lesson = await prisma.lesson.findUnique({
+    where: { id: lessonId },
+    include: {
+      class: {
+        include: {
+          teacher: { include: { user: true } },
+          enrollments: true,
+        },
+      },
+      teacher: { include: { user: true } },
+      contents: {
+        orderBy: { orderIndex: 'asc' },
+      },
+    },
+  });
+
+  if (!lesson) {
+    const err = new Error('Aula não encontrada.');
+    (err as any).statusCode = 404;
+    throw err;
+  }
+
+  // Permissões de Leitura
+  if (sessionUser.role === 'ALUNO') {
+    let studentId = sessionUser.studentId;
+    if (!studentId) {
+      const st = await prisma.student.findUnique({ where: { userId: sessionUser.id } });
+      studentId = st?.id;
+    }
+    const isEnrolled = lesson.class.enrollments.some(
+      (e) => e.studentId === studentId && e.status === 'ACTIVE'
+    );
+    if (!isEnrolled) {
+      const err = new Error('Acesso negado: aluno não possui matrícula ativa nesta turma.');
+      (err as any).statusCode = 403;
+      throw err;
+    }
+  }
+
+  const plannedTopics = extractPlannedTopics(lesson);
+  const taughtTopics = extractTaughtTopics(lesson);
+  const materials = parseMaterialsList(lesson.materials);
+
+  const teacherName = lesson.teacher?.user?.name || lesson.class.teacher?.user?.name || 'Professor Fuctura';
+
+  return {
+    id: lesson.id,
+    classId: lesson.classId,
+    className: lesson.class.name,
+    classCode: lesson.class.code,
+    teacherId: lesson.teacherId || lesson.class.teacherId,
+    teacherName,
+    lessonNumber: lesson.lessonNumber,
+    title: lesson.title,
+    date: lesson.date.toISOString(),
+    scheduleTime: lesson.scheduleTime,
+    status: lesson.status,
+    plannedTopics,
+    taughtTopics,
+    materials,
+  };
+}
+
+export async function updateLessonDiary(
+  lessonId: string,
+  data: {
+    plannedTopics?: string[];
+    taughtTopics?: string[];
+    materials?: SupportMaterialItem[];
+  },
+  sessionUser: { id: string; role: string; studentId?: string; teacherId?: string; directorId?: string }
+): Promise<LessonDiaryData> {
+  const lesson = await prisma.lesson.findUnique({
+    where: { id: lessonId },
+    include: {
+      class: true,
+      teacher: true,
+    },
+  });
+
+  if (!lesson) {
+    const err = new Error('Aula não encontrada.');
+    (err as any).statusCode = 404;
+    throw err;
+  }
+
+  // Permissões de Escrita
+  if (sessionUser.role === 'ALUNO') {
+    const err = new Error('Acesso negado: alunos não possuem permissão para editar o diário de aula.');
+    (err as any).statusCode = 403;
+    throw err;
+  }
+
+  if (sessionUser.role === 'PROFESSOR') {
+    let teacherId = sessionUser.teacherId;
+    if (!teacherId) {
+      const t = await prisma.teacher.findUnique({ where: { userId: sessionUser.id } });
+      teacherId = t?.id;
+    }
+
+    const isClassTeacher = lesson.class.teacherId === teacherId;
+    const isLessonTeacher = lesson.teacherId === teacherId;
+    if (!isClassTeacher && !isLessonTeacher) {
+      const err = new Error('Acesso negado: professor não é o responsável por esta turma/aula.');
+      (err as any).statusCode = 403;
+      throw err;
+    }
+  }
+
+  // Validação dos materiais
+  if (data.materials !== undefined) {
+    for (const mat of data.materials) {
+      if (!mat.title || !mat.title.trim()) {
+        const err = new Error('O título do material de apoio é obrigatório.');
+        (err as any).statusCode = 400;
+        throw err;
+      }
+      if (!mat.url || !mat.url.trim()) {
+        const err = new Error('A URL do material de apoio é obrigatória.');
+        (err as any).statusCode = 400;
+        throw err;
+      }
+      const trimmedUrl = mat.url.trim();
+      if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+        const err = new Error(`A URL "${trimmedUrl}" deve iniciar com http:// ou https://`);
+        (err as any).statusCode = 400;
+        throw err;
+      }
+      try {
+        new URL(trimmedUrl);
+      } catch {
+        const err = new Error(`A URL "${trimmedUrl}" é inválida.`);
+        (err as any).statusCode = 400;
+        throw err;
+      }
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // 1. Atualizar Tópicos Planejados (se fornecidos)
+    if (data.plannedTopics !== undefined) {
+      const sanitizedPlanned = data.plannedTopics
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+
+      await tx.lessonContent.deleteMany({
+        where: {
+          lessonId,
+          contentType: 'PLANNED',
+        },
+      });
+
+      for (let i = 0; i < sanitizedPlanned.length; i++) {
+        await tx.lessonContent.create({
+          data: {
+            lessonId,
+            title: sanitizedPlanned[i],
+            contentType: 'PLANNED',
+            orderIndex: i + 1,
+          },
+        });
+      }
+
+      await tx.lesson.update({
+        where: { id: lessonId },
+        data: {
+          plannedContent:
+            sanitizedPlanned.length > 0
+              ? sanitizedPlanned.map((t, idx) => `${idx + 1}. ${t}`).join('\n')
+              : 'Nenhum tópico planejado registrado.',
+        },
+      });
+    }
+
+    // 2. Atualizar Tópicos Ministrados (se fornecidos)
+    if (data.taughtTopics !== undefined) {
+      const sanitizedTaught = data.taughtTopics
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+
+      await tx.lessonContent.deleteMany({
+        where: {
+          lessonId,
+          contentType: 'TAUGHT',
+        },
+      });
+
+      for (let i = 0; i < sanitizedTaught.length; i++) {
+        await tx.lessonContent.create({
+          data: {
+            lessonId,
+            title: sanitizedTaught[i],
+            contentType: 'TAUGHT',
+            orderIndex: i + 1,
+          },
+        });
+      }
+
+      await tx.lesson.update({
+        where: { id: lessonId },
+        data: {
+          actualContent:
+            sanitizedTaught.length > 0
+              ? sanitizedTaught.map((t, idx) => `${idx + 1}. ${t}`).join('\n')
+              : null,
+        },
+      });
+    }
+
+    // 3. Atualizar Materiais de Apoio (se fornecidos)
+    if (data.materials !== undefined) {
+      const sanitizedMaterials: SupportMaterialItem[] = data.materials.map((m) => ({
+        id: m.id || `mat_${randomUUID()}`,
+        title: m.title.trim(),
+        url: m.url.trim(),
+        description: m.description && m.description.trim() ? m.description.trim() : undefined,
+      }));
+
+      await tx.lesson.update({
+        where: { id: lessonId },
+        data: {
+          materials: sanitizedMaterials.length > 0 ? JSON.stringify(sanitizedMaterials) : null,
+        },
+      });
+
+      await tx.lessonContent.deleteMany({
+        where: {
+          lessonId,
+          contentType: 'COMPLEMENTARY',
+        },
+      });
+
+      for (let i = 0; i < sanitizedMaterials.length; i++) {
+        const mat = sanitizedMaterials[i];
+        await tx.lessonContent.create({
+          data: {
+            lessonId,
+            title: mat.title,
+            description: JSON.stringify({ url: mat.url, description: mat.description }),
+            contentType: 'COMPLEMENTARY',
+            orderIndex: i + 1,
+          },
+        });
+      }
+    }
+  });
+
+  return getLessonWithDiary(lessonId, sessionUser);
+}
+
+export async function getClassLessonsWithDiary(
+  classId: string,
+  sessionUser: { id: string; role: string; studentId?: string; teacherId?: string; directorId?: string }
+): Promise<LessonDiaryData[]> {
+  const cls = await prisma.class.findUnique({
+    where: { id: classId },
+    include: {
+      enrollments: true,
+      teacher: { include: { user: true } },
+      lessons: {
+        include: {
+          contents: { orderBy: { orderIndex: 'asc' } },
+          teacher: { include: { user: true } },
+        },
+        orderBy: { lessonNumber: 'asc' },
+      },
+    },
+  });
+
+  if (!cls) {
+    const err = new Error('Turma não encontrada.');
+    (err as any).statusCode = 404;
+    throw err;
+  }
+
+  // Permissões
+  if (sessionUser.role === 'ALUNO') {
+    let studentId = sessionUser.studentId;
+    if (!studentId) {
+      const st = await prisma.student.findUnique({ where: { userId: sessionUser.id } });
+      studentId = st?.id;
+    }
+    const isEnrolled = cls.enrollments.some(
+      (e) => e.studentId === studentId && e.status === 'ACTIVE'
+    );
+    if (!isEnrolled) {
+      const err = new Error('Acesso negado: aluno não possui matrícula ativa nesta turma.');
+      (err as any).statusCode = 403;
+      throw err;
+    }
+  }
+
+  return cls.lessons.map((l) => ({
+    id: l.id,
+    classId: cls.id,
+    className: cls.name,
+    classCode: cls.code,
+    teacherId: l.teacherId || cls.teacherId,
+    teacherName: l.teacher?.user?.name || cls.teacher?.user?.name || 'Professor Fuctura',
+    lessonNumber: l.lessonNumber,
+    title: l.title,
+    date: l.date.toISOString(),
+    scheduleTime: l.scheduleTime,
+    status: l.status,
+    plannedTopics: extractPlannedTopics(l),
+    taughtTopics: extractTaughtTopics(l),
+    materials: parseMaterialsList(l.materials),
+  }));
 }

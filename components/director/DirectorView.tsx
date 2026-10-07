@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { StudentAttendanceModal } from '@/components/attendance/StudentAttendanceModal';
 import { AuctionItem, AuctionGlobalSettings } from '@/lib/auctionStore';
+import { LessonDiaryModal } from '@/components/lessons/LessonDiaryModal';
 
 export const DEFAULT_DIRECTOR_DASHBOARD_MOCK = {
   director: {
@@ -139,6 +140,8 @@ export const DirectorView: React.FC = () => {
   const [data, setData] = useState<any>(DEFAULT_DIRECTOR_DASHBOARD_MOCK);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'auction' | 'students' | 'teachers' | 'classes' | 'gamification'>('auction');
+  const [selectedClassForLessons, setSelectedClassForLessons] = useState<any | null>(null);
+  const [selectedLessonForDiaryId, setSelectedLessonForDiaryId] = useState<string | null>(null);
 
   // Auction State
   const [auctionItems, setAuctionItems] = useState<AuctionItem[]>([]);
@@ -1135,12 +1138,119 @@ export const DirectorView: React.FC = () => {
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
-                  <span>Alunos matriculados:</span>
-                  <span className="font-bold text-white font-mono">{cls.enrolledCount || 15} alunos</span>
+                  <span>Alunos: <strong className="text-white font-mono">{cls.enrolledCount || 0}</strong></span>
+                  <button
+                    onClick={() => setSelectedClassForLessons(cls)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 font-bold transition-all cursor-pointer"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>Diário de Aulas ({cls.lessons?.length || 0})</span>
+                  </button>
                 </div>
               </div>
             ))}
           </div>
+
+          {/* Modal de Aulas da Turma para Diretoria */}
+          {selectedClassForLessons && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md overflow-y-auto">
+              <div className="relative w-full max-w-4xl rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl p-6 space-y-5 my-8 max-h-[90vh] flex flex-col">
+                <div className="flex items-start justify-between pb-4 border-b border-slate-800 shrink-0">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-0.5 rounded-full">
+                        Diário de Turma &bull; Diretoria
+                      </span>
+                      <span className="text-xs text-slate-400 font-mono">{selectedClassForLessons.code}</span>
+                    </div>
+                    <h3 className="text-xl font-bold text-white mt-1">{selectedClassForLessons.name}</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Professor Responsável: <strong className="text-cyan-300 font-medium">{selectedClassForLessons.teacherName || 'Não atribuído'}</strong> &bull; {selectedClassForLessons.daysOfWeek} ({selectedClassForLessons.scheduleTime})
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedClassForLessons(null)}
+                    className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="overflow-y-auto space-y-3 flex-1 pr-1">
+                  {(selectedClassForLessons.lessons || []).length === 0 ? (
+                    <div className="p-8 text-center text-xs text-slate-400">
+                      Nenhuma aula registrada nesta turma.
+                    </div>
+                  ) : (
+                    selectedClassForLessons.lessons.map((lesson: any) => (
+                      <div
+                        key={lesson.id}
+                        className="p-4 rounded-2xl border border-slate-800/80 bg-slate-950/60 text-xs hover:border-slate-700 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                        <div className="space-y-1.5 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded text-[11px]">
+                              Aula {lesson.lessonNumber}
+                            </span>
+                            <h4 className="font-bold text-white text-sm truncate">{lesson.title}</h4>
+                            <span
+                              className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                                lesson.status === 'COMPLETED'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  : 'bg-slate-800 text-slate-300'
+                              }`}
+                            >
+                              {lesson.status === 'COMPLETED' ? 'Concluída' : 'Agendada'}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2.5 text-slate-400 text-xs">
+                            <span>
+                              {new Date(lesson.date).toLocaleDateString('pt-BR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                              })}{' '}
+                              &bull; {lesson.scheduleTime}
+                            </span>
+                            <span>&bull;</span>
+                            <span className="text-cyan-300 font-medium">
+                              {lesson.plannedTopics?.length || 0} tópico(s) planejado(s)
+                            </span>
+                            <span>&bull;</span>
+                            <span className="text-emerald-300 font-medium">
+                              {lesson.taughtTopics?.length || 0} ministrado(s)
+                            </span>
+                            <span>&bull;</span>
+                            <span className="text-amber-300 font-medium">
+                              {lesson.materials?.length || 0} link(s)
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => setSelectedLessonForDiaryId(lesson.id)}
+                          className="flex items-center justify-center gap-1.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-bold px-3.5 py-2 text-xs transition-all shrink-0 cursor-pointer shadow-md self-start sm:self-center"
+                        >
+                          <BookOpen className="w-3.5 h-3.5" />
+                          <span>Inspecionar / Editar Diário</span>
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="pt-3 border-t border-slate-800 flex justify-end shrink-0">
+                  <button
+                    onClick={() => setSelectedClassForLessons(null)}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1729,6 +1839,16 @@ export const DirectorView: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+      {/* Modal de Diário de Aula para Diretoria */}
+      {selectedLessonForDiaryId && (
+        <LessonDiaryModal
+          isOpen={!!selectedLessonForDiaryId}
+          onClose={() => setSelectedLessonForDiaryId(null)}
+          lessonId={selectedLessonForDiaryId}
+          userRole="DIRETOR"
+          onSaved={loadDashboard}
+        />
       )}
     </div>
   );

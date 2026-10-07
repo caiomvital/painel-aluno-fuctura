@@ -861,34 +861,128 @@ export const StudentView: React.FC = () => {
                       </div>
                     </div>
 
-                    {isExpanded && (
-                      <div className="p-4 bg-slate-900/40 border-t border-slate-800/80 text-xs space-y-3">
-                        <div>
-                          <strong className="text-cyan-400 block mb-1">
-                            {les.status === 'COMPLETED' ? 'O que vimos em aula:' : 'O que vem depois (planejado):'}
-                          </strong>
-                          <p className="text-slate-300 leading-relaxed font-normal">
-                            {les.status === 'COMPLETED'
-                              ? les.actualContent || les.plannedContent
-                              : les.plannedContent}
-                          </p>
+                    {isExpanded && (() => {
+                      const plannedList: string[] =
+                        Array.isArray(les.plannedTopics) && les.plannedTopics.length > 0
+                          ? les.plannedTopics
+                          : les.plannedContent
+                          ? les.plannedContent
+                              .split('\n')
+                              .map((l: string) => l.replace(/^(\d+[\.\)]\s*|[-•*]\s*)/, '').trim())
+                              .filter(Boolean)
+                          : [];
+
+                      const taughtList: string[] =
+                        Array.isArray(les.taughtTopics) && les.taughtTopics.length > 0
+                          ? les.taughtTopics
+                          : les.actualContent
+                          ? les.actualContent
+                              .split('\n')
+                              .map((l: string) => l.replace(/^(\d+[\.\)]\s*|[-•*]\s*)/, '').trim())
+                              .filter(Boolean)
+                          : [];
+
+                      let materialsList: Array<{ id: string; title: string; url: string; description?: string }> = [];
+                      if (Array.isArray(les.supportMaterials) && les.supportMaterials.length > 0) {
+                        materialsList = les.supportMaterials;
+                      } else if (les.materials) {
+                        try {
+                          const parsed = JSON.parse(les.materials);
+                          if (Array.isArray(parsed)) materialsList = parsed;
+                        } catch {
+                          // Texto legado
+                        }
+                      }
+
+                      return (
+                        <div className="p-4 sm:p-5 bg-slate-900/50 border-t border-slate-800/80 text-xs space-y-4">
+                          {/* 1. O que vamos aprender (Tópicos Planejados) */}
+                          <div className="space-y-1.5">
+                            <strong className="text-cyan-400 font-bold flex items-center gap-1.5 text-xs">
+                              <BookOpen className="w-3.5 h-3.5" />
+                              <span>O que vamos aprender</span>
+                            </strong>
+                            {plannedList.length > 0 ? (
+                              <ul className="space-y-1 pl-1 text-slate-300">
+                                {plannedList.map((topic, tIdx) => (
+                                  <li key={tIdx} className="flex items-start gap-2 text-xs leading-relaxed">
+                                    <span className="text-cyan-500 font-bold">&bull;</span>
+                                    <span>{topic}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-slate-500 italic text-xs">
+                                Nenhum tópico planejado registrado até o momento.
+                              </p>
+                            )}
+                          </div>
+
+                          {/* 2. O que aprendemos (Tópicos Ministrados - só aparece quando registrado) */}
+                          {taughtList.length > 0 && (
+                            <div className="space-y-1.5 pt-2 border-t border-slate-800/60">
+                              <strong className="text-emerald-400 font-bold flex items-center gap-1.5 text-xs">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>O que aprendemos</span>
+                              </strong>
+                              <ul className="space-y-1 pl-1 text-slate-300">
+                                {taughtList.map((topic, tIdx) => (
+                                  <li key={tIdx} className="flex items-start gap-2 text-xs leading-relaxed">
+                                    <span className="text-emerald-500 font-bold">&bull;</span>
+                                    <span>{topic}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* 3. Materiais de apoio */}
+                          <div className="space-y-1.5 pt-2 border-t border-slate-800/60">
+                            <strong className="text-amber-400 font-bold flex items-center gap-1.5 text-xs">
+                              <FileText className="w-3.5 h-3.5" />
+                              <span>Materiais de apoio</span>
+                            </strong>
+                            {materialsList.length > 0 ? (
+                              <div className="space-y-2 pt-1">
+                                {materialsList.map((mat, mIdx) => (
+                                  <div
+                                    key={mat.id || mIdx}
+                                    className="flex items-center justify-between p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 text-xs gap-3"
+                                  >
+                                    <div className="min-w-0">
+                                      <span className="font-semibold text-white block truncate">{mat.title}</span>
+                                      {mat.description && (
+                                        <span className="text-[11px] text-slate-400 block truncate">{mat.description}</span>
+                                      )}
+                                    </div>
+                                    <a
+                                      href={mat.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-[11px] font-bold transition-all shrink-0 cursor-pointer"
+                                    >
+                                      <span>Abrir</span>
+                                      <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-slate-500 italic text-xs">
+                                Nenhum material de apoio cadastrado para esta aula.
+                              </p>
+                            )}
+                          </div>
+
+                          {les.activities && (
+                            <div className="text-[11px] text-slate-400 flex items-center gap-1.5 pt-2 border-t border-slate-800/60">
+                              <BookOpen className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                              <span>Atividade: <strong className="text-slate-300 font-normal">{les.activities}</strong></span>
+                            </div>
+                          )}
                         </div>
-
-                        {les.activities && (
-                          <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                            <BookOpen className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                            <span>Atividade: <strong className="text-slate-300 font-normal">{les.activities}</strong></span>
-                          </div>
-                        )}
-
-                        {les.materials && (
-                          <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                            <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                            <span>Material da aula: <strong className="text-slate-300 font-normal">{les.materials}</strong></span>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 );
               })

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { AuctionSection } from '@/components/auction/AuctionSection';
 import { StudentAttendanceModal } from '@/components/attendance/StudentAttendanceModal';
+import { LessonDiaryModal } from '@/components/lessons/LessonDiaryModal';
 
 export const DEFAULT_TEACHER_DASHBOARD_MOCK = {
   teacher: {
@@ -102,6 +103,8 @@ export const TeacherView: React.FC = () => {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [teacherTab, setTeacherTab] = useState<'attendance' | 'auction' | 'classes' | 'schedule' | 'attendance-management'>('attendance');
   const [selectedAttendanceStudent, setSelectedAttendanceStudent] = useState<{ id: string; name: string } | null>(null);
+  const [selectedLessonForDiaryId, setSelectedLessonForDiaryId] = useState<string | null>(null);
+  const [classSubView, setClassSubView] = useState<Record<string, 'students' | 'lessons'>>({});
 
   const fetchDashboard = async () => {
     try {
@@ -484,48 +487,155 @@ export const TeacherView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Expanded Students Details */}
-                {isExpanded && (
-                  <div className="border-t border-slate-800/80 p-6 bg-slate-950/50 space-y-4">
-                    <div className="flex items-center justify-between text-xs text-slate-400 pb-2 border-b border-slate-800/60">
-                      <span className="font-bold text-slate-200 uppercase tracking-wider text-[11px]">
-                        Quadro de Acompanhamento Discente
-                      </span>
-                      <span>{cls.completedLessonsCount} de {cls.totalLessons} aulas ministradas</span>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                      {cls.students.map((student: any) => {
-                        const attendancePct = cls.completedLessonsCount > 0 ? Math.round((student.confirmedCount / cls.completedLessonsCount) * 100) : 100;
-                        return (
-                          <div
-                            key={student.id}
-                            className="flex items-center justify-between rounded-2xl border border-slate-800/70 bg-slate-900/60 p-3.5 text-xs hover:border-slate-700 transition-colors"
+                {/* Expanded Class Details */}
+                {isExpanded && (() => {
+                  const subView = classSubView[cls.id] || 'students';
+                  return (
+                    <div className="border-t border-slate-800/80 p-6 bg-slate-950/50 space-y-4">
+                      {/* Sub-view Navigation */}
+                      <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-800/60">
+                        <div className="flex items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setClassSubView((prev) => ({ ...prev, [cls.id]: 'students' }));
+                            }}
+                            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                              subView === 'students'
+                                ? 'bg-cyan-500 text-slate-950 font-bold'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
                           >
-                            <div className="flex flex-col">
-                              <span className="font-bold text-white text-sm">{student.name}</span>
-                              <span className="text-[11px] text-slate-400 font-mono mt-0.5">{student.registrationNumber}</span>
-                            </div>
+                            Alunos &amp; Frequência ({cls.students.length})
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setClassSubView((prev) => ({ ...prev, [cls.id]: 'lessons' }));
+                            }}
+                            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                              subView === 'lessons'
+                                ? 'bg-cyan-500 text-slate-950 font-bold'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            <BookOpen className="w-3.5 h-3.5" />
+                            <span>Diário de Aulas ({cls.lessons?.length || cls.totalLessons})</span>
+                          </button>
+                        </div>
+                        <span className="text-xs text-slate-400 font-mono">
+                          {cls.completedLessonsCount} de {cls.totalLessons} aulas ministradas
+                        </span>
+                      </div>
 
-                            <div className="flex items-center gap-3">
-                              <div className="flex flex-col text-right">
-                                <span className="font-mono font-bold text-cyan-400">{student.currentXp} XP</span>
-                                <span className="text-[10px] text-slate-400">{student.confirmedCount} presenças ({attendancePct}%)</span>
-                              </div>
-                              <button
-                                onClick={() => setSelectedAttendanceStudent({ id: student.id, name: student.name })}
-                                className="flex items-center gap-1 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1.5 text-[11px] font-bold text-cyan-300 hover:bg-cyan-500/20 transition-all shrink-0"
+                      {/* SUBVIEW 1: QUADRO DE ALUNOS */}
+                      {subView === 'students' && (
+                        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                          {cls.students.map((student: any) => {
+                            const attendancePct =
+                              cls.completedLessonsCount > 0
+                                ? Math.round((student.confirmedCount / cls.completedLessonsCount) * 100)
+                                : 100;
+                            return (
+                              <div
+                                key={student.id}
+                                className="flex items-center justify-between rounded-2xl border border-slate-800/70 bg-slate-900/60 p-3.5 text-xs hover:border-slate-700 transition-colors"
                               >
-                                <FileText className="w-3.5 h-3.5" />
-                                <span>Frequência</span>
-                              </button>
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-white text-sm">{student.name}</span>
+                                  <span className="text-[11px] text-slate-400 font-mono mt-0.5">
+                                    {student.registrationNumber}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-3">
+                                  <div className="flex flex-col text-right">
+                                    <span className="font-mono font-bold text-cyan-400">{student.currentXp} XP</span>
+                                    <span className="text-[10px] text-slate-400">
+                                      {student.confirmedCount} presenças ({attendancePct}%)
+                                    </span>
+                                  </div>
+                                  <button
+                                    onClick={() => setSelectedAttendanceStudent({ id: student.id, name: student.name })}
+                                    className="flex items-center gap-1 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1.5 text-[11px] font-bold text-cyan-300 hover:bg-cyan-500/20 transition-all shrink-0 cursor-pointer"
+                                  >
+                                    <FileText className="w-3.5 h-3.5" />
+                                    <span>Frequência</span>
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* SUBVIEW 2: DIÁRIO DE AULAS */}
+                      {subView === 'lessons' && (
+                        <div className="space-y-2.5">
+                          {(cls.lessons || []).length === 0 ? (
+                            <div className="p-6 text-center text-xs text-slate-500 rounded-2xl border border-dashed border-slate-800">
+                              Nenhuma aula cadastrada nesta turma.
                             </div>
-                          </div>
-                        );
-                      })}
+                          ) : (
+                            cls.lessons.map((lesson: any) => (
+                              <div
+                                key={lesson.id}
+                                className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl border border-slate-800/70 bg-slate-900/60 text-xs hover:border-slate-700 transition-colors gap-3"
+                              >
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-mono font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded text-[11px]">
+                                      Aula {lesson.lessonNumber}
+                                    </span>
+                                    <h4 className="font-bold text-white text-sm truncate">{lesson.title}</h4>
+                                    <span
+                                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                                        lesson.status === 'COMPLETED'
+                                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                          : 'bg-slate-800 text-slate-300'
+                                      }`}
+                                    >
+                                      {lesson.status === 'COMPLETED' ? 'Concluída' : 'Agendada'}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2.5 text-slate-400 text-xs mt-1.5">
+                                    <span>
+                                      {new Date(lesson.date).toLocaleDateString('pt-BR', {
+                                        day: '2-digit',
+                                        month: '2-digit',
+                                      })}{' '}
+                                      &bull; {lesson.scheduleTime}
+                                    </span>
+                                    <span>&bull;</span>
+                                    <span className="text-cyan-300 font-medium">
+                                      {lesson.plannedTopics?.length || 0} tópico(s) planejado(s)
+                                    </span>
+                                    <span>&bull;</span>
+                                    <span className="text-emerald-300 font-medium">
+                                      {lesson.taughtTopics?.length || 0} ministrado(s)
+                                    </span>
+                                    <span>&bull;</span>
+                                    <span className="text-amber-300 font-medium">
+                                      {lesson.materials?.length || 0} link(s)
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <button
+                                  onClick={() => setSelectedLessonForDiaryId(lesson.id)}
+                                  className="flex items-center justify-center gap-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-3.5 py-2 text-xs transition-all shrink-0 cursor-pointer shadow-sm self-start sm:self-center"
+                                >
+                                  <BookOpen className="w-3.5 h-3.5" />
+                                  <span>Editar Diário</span>
+                                </button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             );
           })}
@@ -630,6 +740,16 @@ export const TeacherView: React.FC = () => {
             </span>
             <p className="text-slate-300 leading-relaxed font-normal">{upcomingLesson.plannedContent}</p>
           </div>
+
+          <div className="pt-2 flex justify-end">
+            <button
+              onClick={() => setSelectedLessonForDiaryId(upcomingLesson.id)}
+              className="flex items-center gap-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 px-4 py-2 text-xs font-bold text-slate-950 shadow-md transition-all cursor-pointer"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Gerenciar Diário desta Aula</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -642,6 +762,17 @@ export const TeacherView: React.FC = () => {
           studentName={selectedAttendanceStudent.name}
           userRole="PROFESSOR"
           onAttendanceChanged={fetchDashboard}
+        />
+      )}
+
+      {/* Modal de Diário de Aula e Materiais */}
+      {selectedLessonForDiaryId && (
+        <LessonDiaryModal
+          isOpen={!!selectedLessonForDiaryId}
+          onClose={() => setSelectedLessonForDiaryId(null)}
+          lessonId={selectedLessonForDiaryId}
+          userRole="PROFESSOR"
+          onSaved={fetchDashboard}
         />
       )}
     </div>
