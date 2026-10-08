@@ -546,6 +546,41 @@ async function run() {
       },
     );
     await check(
+      "homologação bloqueia indexação e identifica banco somente para direção",
+      async () => {
+        const { targetFingerprint } = await import("../lib/staging-target");
+        const staging = await start(process.env.DATABASE_URL!, {
+          APP_ENV: "staging",
+        });
+        for (const path of ["/", "/api/health/live", "/robots.txt"]) {
+          const response = await fetch(staging + path);
+          assert.equal(response.status, 200);
+          assert.match(response.headers.get("x-robots-tag")!, /noindex/);
+          if (path === "/robots.txt")
+            assert.match(await response.text(), /Disallow: \/\s/);
+        }
+        const publicReady = await fetch(staging + "/api/health/ready");
+        assert.deepEqual(await publicReady.json(), { status: "ready" });
+        assert.equal(
+          (await fetch(staging + "/api/health/details")).status,
+          401,
+        );
+        const details = await fetch(staging + "/api/health/details", {
+          headers: { Cookie: cookies.director },
+        });
+        const data = await details.json();
+        assert.equal(
+          data.stagingTarget,
+          targetFingerprint(process.env.DATABASE_URL!),
+        );
+        assert.equal(data.stagingDirectTarget, data.stagingTarget);
+        assert.doesNotMatch(
+          JSON.stringify(data),
+          /postgresql:\/\/|password|127\.0\.0\.1/,
+        );
+      },
+    );
+    await check(
       "logs reais não contêm senhas, URLs de banco ou hashes",
       async () => {
         assert.doesNotMatch(

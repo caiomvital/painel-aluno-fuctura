@@ -13,6 +13,7 @@ const env = {
   NEXT_TELEMETRY_DISABLED: "1",
   NODE_ENV: undefined,
   APP_URL: undefined,
+  APP_ENV: undefined,
 };
 function run(args: string[]) {
   const result = spawnSync(process.execPath, args, { env, stdio: "inherit" });

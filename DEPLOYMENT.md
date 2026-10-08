@@ -166,3 +166,94 @@ Checklist de implantação futura:
 - [ ] Ready 200, HTTPS, perfis, fluxos críticos e mobile homologados após implantação.
 
 Até cumprir as pendências externas, o sistema está preparado no repositório, mas **não liberado para produção**.
+
+## 15. Comandos VPS para homologação (execução futura autorizada)
+
+Plano específico/roteiro em [HOMOLOGATION.md](HOMOLOGATION.md); mantém os procedimentos anteriores. **Não executados nesta etapa.** Preencher variáveis/path e renderizar modelos antes de comandos que alteram infraestrutura. Confirmar distribuição primeiro (`cat /etc/os-release`); não aplicar comandos de uma família Linux em outra.
+
+Dependências: se o operador confirmar Debian/Ubuntu com apt e repositório PostgreSQL compatível previamente revisado, exemplos de instalação são `sudo apt-get update` e `sudo apt-get install nginx apache2-utils ca-certificates curl xz-utils postgresql-client-REPLACE_PG_MAJOR`. Para outra distribuição usar seu gerenciador aprovado. Cliente pg_dump deve ser compatível com o servidor. Node 24.x e Bun 1.4.2 devem vir de fonte oficial com integridade verificada, sem desativar TLS/checksums. Não presumir que o pacote `nodejs` do sistema oferece versão 24; confirmar `node --version`, `bun --version`, `pg_dump --version`.
+
+Exemplo de instalação Node oficial, **somente depois de preencher versão/arquitetura e confirmar Linux**:
+
+```sh
+NODE_VERSION=vREPLACE_24_PATCH
+NODE_ARCH=REPLACE_x64_OR_arm64
+case "$NODE_VERSION" in v24.*) ;; *) exit 1 ;; esac
+case "$NODE_ARCH" in x64|arm64) ;; *) exit 1 ;; esac
+mkdir -p /tmp/fuctura-node-install
+cd /tmp/fuctura-node-install
+curl --fail --location --proto '=https' --tlsv1.2 --remote-name "https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-linux-$NODE_ARCH.tar.xz"
+curl --fail --location --proto '=https' --tlsv1.2 --remote-name "https://nodejs.org/dist/$NODE_VERSION/SHASUMS256.txt"
+grep " node-$NODE_VERSION-linux-$NODE_ARCH.tar.xz$" SHASUMS256.txt > selected.sha256
+sha256sum --check selected.sha256
+sudo mkdir -p /opt/fuctura-node
+sudo tar -xJf "node-$NODE_VERSION-linux-$NODE_ARCH.tar.xz" --strip-components=1 -C /opt/fuctura-node
+/opt/fuctura-node/bin/node --version
+```
+
+Não executar se checksum falhar ou versão/path forem placeholders. Com Node 24/npm no PATH e um diretório de tooling escolhido, instalar a versão fixada pelo registry confiável (npm verifica integridade): `npm install --prefix REPLACE_TOOLING_PREFIX --no-audit --no-fund bun@1.4.2`; adicionar `REPLACE_TOOLING_PREFIX/node_modules/.bin` ao PATH dos comandos de build/preflight e conferir `bun --version`. Não desabilitar TLS/integridade. O serviço usa Node absoluto fora de home, pois o modelo systemd protege `/home`.
+
+Preparação de release (caminhos/usuário escolhidos pelo operador; não contém credenciais inline):
+
+```sh
+FUCTURA_RELEASE_ROOT=/REPLACE_RELEASE_ROOT
+FUCTURA_RELEASE_DIR=/REPLACE_RELEASE_ROOT/releases/REPLACE_APPROVED_COMMIT
+FUCTURA_ENV_FILE=/REPLACE_PRIVATE_ENV_FILE
+FUCTURA_APP_USER=REPLACE_APP_USER
+FUCTURA_APP_GROUP=REPLACE_APP_GROUP
+# Carregar somente arquivo confiável 0600 com sintaxe shell válida, nunca arquivo de origem desconhecida.
+set -a
+. "$FUCTURA_ENV_FILE"
+set +a
+cd "$FUCTURA_RELEASE_DIR"
+bun install --frozen-lockfile
+npm run check:production
+npm run preflight
+npx prisma generate
+npm run build
+npm run prepare:standalone
+mkdir -p .next/standalone/.next/cache
+sudo chown -R "$FUCTURA_APP_USER:$FUCTURA_APP_GROUP" "$FUCTURA_RELEASE_DIR"
+```
+
+Executar testes antes, no banco local descartável, conforme seção 6. Nenhuma migration está incluída na preparação da release. O checkout/release deve apontar exatamente para commit aprovado; não compilar no diretório que já atende tráfego. O segredo/arquivo externo não deve ser copiado para `.next/standalone`.
+
+Renderizar os modelos em diretório de revisão: `cp deploy/fuctura.service.example REPLACE_RENDERED_SERVICE`, `cp deploy/nginx.conf.example REPLACE_RENDERED_NGINX`, `cp deploy/staging-access.conf.example REPLACE_RENDERED_ACCESS`. Editar TODOS os placeholders e incluir o arquivo de acesso adicional dentro do server HTTPS. O redirecionamento usa `APP_URL` completo, inclusive porta externa não padrão. Se houver Nginx de produção no mesmo host, usar nomes globais/zonas distintos.
+
+Criar a barreira sem senha na linha de comando (utiliza prompt):
+
+```sh
+sudo htpasswd -c REPLACE_STAGING_HTPASSWD_FILE REPLACE_GATE_USERNAME
+sudo chmod 0640 REPLACE_STAGING_HTPASSWD_FILE
+# Definir proprietário/grupo para permitir leitura apenas ao Nginx e ao operador.
+```
+
+Comandos que **alteram infraestrutura** após autorização e revisão do material renderizado:
+
+```sh
+sudo systemd-analyze verify REPLACE_RENDERED_SERVICE
+sudo install -m 0644 REPLACE_RENDERED_SERVICE /etc/systemd/system/fuctura-staging.service
+sudo install -m 0644 REPLACE_RENDERED_ACCESS REPLACE_NGINX_ACCESS_INCLUDE_PATH
+sudo install -m 0644 REPLACE_RENDERED_NGINX REPLACE_NGINX_SERVER_INCLUDE_PATH
+sudo nginx -t
+# Criar DNS/certificado por procedimento específico aprovado antes de ativar o proxy HTTPS.
+ln -s "$FUCTURA_RELEASE_DIR" "$FUCTURA_RELEASE_ROOT/current.next"
+mv -Tf "$FUCTURA_RELEASE_ROOT/current.next" "$FUCTURA_RELEASE_ROOT/current"
+sudo systemctl daemon-reload
+sudo systemctl enable --now fuctura-staging
+sudo systemctl reload nginx
+sudo systemctl status fuctura-staging --no-pager
+sudo journalctl -u fuctura-staging --since '10 minutes ago'
+```
+
+Modelos de logs/retenção na seção 11; confirmar journal persistente e rotação Nginx antes de liberar acesso. `systemctl`, `install`, links e reload acima não são verificações somente leitura. Certificado, DNS, firewall e renovação dependem do provedor/OS escolhido e não têm valores presumidos; validar por HTTPS sem `curl -k`/TLS desabilitado. Não expor porta Node externamente. Basic Auth não substitui as sessões/perfis da aplicação.
+
+Atualização: preparar nova release pelo mesmo procedimento; apontar link e `sudo systemctl restart fuctura-staging`; só liberar após readiness, preflight e roteiro. Rollback de aplicação com schema compatível:
+
+```sh
+ln -s REPLACE_PREVIOUS_APPROVED_RELEASE "$FUCTURA_RELEASE_ROOT/current.next"
+mv -Tf "$FUCTURA_RELEASE_ROOT/current.next" "$FUCTURA_RELEASE_ROOT/current"
+sudo systemctl restart fuctura-staging
+```
+
+Depois validar `staging:published` e fluxos, manter barreira/noindex e registrar resultado. Não restaurar banco/migrations automaticamente; usar plano específico de backup/recuperação autorizado. Esta tarefa não executa os comandos VPS acima.

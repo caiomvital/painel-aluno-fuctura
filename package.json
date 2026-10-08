@@ -15,7 +15,10 @@
     "test:supabase": "bun scripts/check-supabase.ts",
     "preflight": "bun scripts/preflight.ts",
     "check:production": "bun scripts/check-production-config.ts",
-    "prepare:standalone": "node scripts/prepare-standalone.mjs"
+    "prepare:standalone": "node scripts/prepare-standalone.mjs",
+    "staging:target": "bun scripts/staging-target.ts",
+    "staging:fixtures": "bun scripts/staging-fixtures.ts",
+    "staging:published": "bun scripts/check-staging-published.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "environment": "staging",
+  "isolated": true,
+  "shared": false,
+  "targetSha256": "REPLACE_STAGING_TARGET_SHA256",
+  "origin": "https://REPLACE_STAGING_DOMAIN",
+  "protectedTargets": ["REPLACE_SHARED_OR_PRODUCTION_TARGET_SHA256"],
+  "protectedOrigins": ["https://REPLACE_PRODUCTION_DOMAIN"],
+  "protectedAuthSecrets": ["REPLACE_PRODUCTION_AUTH_SECRET_SHA256"]
+}

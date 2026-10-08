@@ -1,10 +1,21 @@
+import { stagingIndexHeaders } from "./lib/staging-index";
 import { NextRequest, NextResponse } from "next/server";
 import { permittedMutation } from "./lib/request-security";
 import { productionConfiguration } from "./lib/production-config";
 import { operationalLog } from "./lib/operational-log";
 export function middleware(request: NextRequest) {
+  if (!request.nextUrl.pathname.startsWith("/api/")) {
+    const response = NextResponse.next();
+    for (const [name, value] of Object.entries(stagingIndexHeaders()))
+      response.headers.set(name, value);
+    return response;
+  }
   const requestId = crypto.randomUUID();
-  const headers = { "Cache-Control": "no-store", "X-Request-Id": requestId };
+  const headers = {
+    "Cache-Control": "no-store",
+    "X-Request-Id": requestId,
+    ...stagingIndexHeaders(),
+  };
   // Health live/ready remain available to distinguish a live process from invalid configuration.
   if (
     process.env.NODE_ENV === "production" &&
@@ -37,4 +48,6 @@ export function middleware(request: NextRequest) {
     response.headers.set(name, value);
   return response;
 }
-export const config = { matcher: "/api/:path*" };
+export const config = {
+  matcher: ["/api/:path*", "/((?!_next/static|_next/image).*)"],
+};

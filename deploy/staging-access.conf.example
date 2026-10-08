@@ -1,0 +1,7 @@
+# Incluir DENTRO do server HTTPS do nginx.conf.example, somente em homologação.
+# Acesso adicional: não substitui login/perfis da aplicação.
+auth_basic "Fuctura homologacao";
+auth_basic_user_file REPLACE_STAGING_HTPASSWD_FILE;
+add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
+# A regra é herdada por todas as locations: login, health, assets e PWA.
+# Não adicionar auth_basic off em /api ou /_next. Alternativa: VPN/rede autorizada.
