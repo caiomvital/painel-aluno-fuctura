@@ -71,8 +71,10 @@ em `playwright-report/`. Os artefatos contêm apenas credenciais e dados descart
 de teste e não são versionados. Screenshots servem à revisão; não atestam qualidade estética.
 
 O diagnóstico Supabase nunca executa migrations, seeds ou escritas. Testa conexão,
-colunas/tipos/nulabilidade e leituras essenciais. Sem acesso real, registra `pending`
-em `test-results/supabase.json`; isso não significa aprovação.
+colunas/tipos/nulabilidade e leituras essenciais. Sem acesso real, registra a etapa `FALHOU` e as etapas dependentes `NÃO EXECUTADA`
+em `test-results/supabase.json`, com código de saída 1; isso não significa aprovação.
+Veja [SUPABASE.md](SUPABASE.md) para TLS, tipos de pooler, limites de rede e plano
+de migrations posterior com backup e autorização.
 
 ## CI
 

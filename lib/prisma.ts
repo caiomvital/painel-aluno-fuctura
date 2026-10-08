@@ -1,25 +1,25 @@
 // lib/prisma.ts
 // Singleton instance of PrismaClient for Next.js to prevent connection exhaustion during development hot-reloads
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from "@prisma/client";
+import { databaseUrl } from "./database-config";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function getPrismaClient(): PrismaClient {
-  let dbUrl = process.env.DATABASE_URL;
-  if (dbUrl && !dbUrl.includes('pgbouncer=true') && (dbUrl.includes(':6543') || dbUrl.includes('pooler'))) {
-    dbUrl += (dbUrl.includes('?') ? '&' : '?') + 'pgbouncer=true';
-  }
+  const dbUrl = process.env.DATABASE_URL
+    ? databaseUrl(process.env.DATABASE_URL)
+    : undefined;
 
   return new PrismaClient({
     datasources: dbUrl ? { db: { url: dbUrl } } : undefined,
-    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
 }
 
 export const prisma = globalForPrisma.prisma || getPrismaClient();
 
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
 }
 
