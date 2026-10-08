@@ -20,7 +20,7 @@ export async function healthDetails() {
         state.database = alive[0]?.ok === 1;
         const migrations = await tx.$queryRaw<
           { ok: number }[]
-        >`SELECT 1 AS ok FROM "_prisma_migrations" WHERE migration_name = '20261006_point_transaction_unique_origin_ref' AND finished_at IS NOT NULL AND rolled_back_at IS NULL LIMIT 1`;
+        >`SELECT 1 AS ok FROM "_prisma_migrations" WHERE migration_name = '20261008_student_registration_approval' AND finished_at IS NOT NULL AND rolled_back_at IS NULL LIMIT 1`;
         state.migrations = migrations[0]?.ok === 1;
       },
       { maxWait: 2000, timeout: 3000 },

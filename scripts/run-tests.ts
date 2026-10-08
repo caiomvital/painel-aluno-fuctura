@@ -48,6 +48,7 @@ if (mode !== "e2e") {
   run(["scripts/test-marco8.ts"]);
   run(["scripts/test-marco9.ts"]);
   run(["scripts/test-supabase-schema.ts"]);
+  run(["scripts/test-registration.ts"]);
 }
 if (mode !== "integration")
   run(["node_modules/@playwright/test/cli.js", "test"]);

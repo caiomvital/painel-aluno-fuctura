@@ -14,6 +14,18 @@ enum Role {
   DIRETOR
 }
 
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RegistrationCourse {
+  JAVA
+  PYTHON
+  IA
+}
+
 enum ClassStatus {
   ACTIVE
   FINISHED
@@ -63,13 +75,30 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  profile  Profile?
-  student  Student?
-  teacher  Teacher?
-  director Director?
+  profile               Profile?
+  student               Student?
+  teacher               Teacher?
+  director              Director?
+  registration          RegistrationRequest?  @relation("RegistrationApplicant")
+  reviewedRegistrations RegistrationRequest[] @relation("RegistrationReviewer")
 
   @@index([email])
   @@index([role])
+}
+
+model RegistrationRequest {
+  id           String             @id @default(cuid())
+  userId       String             @unique
+  course       RegistrationCourse
+  status       RegistrationStatus @default(PENDING)
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  user         User               @relation("RegistrationApplicant", fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy   User?              @relation("RegistrationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
 }
 
 model Profile {

@@ -1,4 +1,5 @@
 import { operationalLog } from '@/lib/operational-log';
+import { pendingRegistrationMessage } from '@/lib/registration-input';
 import { publicError } from '@/lib/operational-log';
 import { takeLoginAttempt, clearLoginAttempts } from '@/lib/login-limiter';
 import { NextRequest, NextResponse } from 'next/server';
@@ -28,6 +29,7 @@ export async function POST(req: NextRequest) {
         student: true,
         teacher: true,
         director: true,
+        registration: { select: { status: true } },
       },
     });
 
@@ -55,6 +57,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (user.registration && user.registration.status !== 'APPROVED') {
+      return NextResponse.json({ error: pendingRegistrationMessage }, { status: 403 });
+    }
     clearLoginAttempts(normalizedEmail);
     // 3. Utilizar exclusivamente o role armazenado no User
     const studentId = user.student ? user.student.id : undefined;

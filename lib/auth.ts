@@ -32,9 +32,11 @@ export async function getSession(): Promise<SessionUser | null> {
         student: { select: { id: true } },
         teacher: { select: { id: true } },
         director: { select: { id: true } },
+        registration: { select: { status: true } },
       },
     });
     if (!user || user.role !== session.role) return null;
+    if (user.registration && user.registration.status !== "APPROVED") return null;
     return {
       id: user.id,
       name: user.name,
