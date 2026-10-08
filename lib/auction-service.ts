@@ -1,3 +1,4 @@
+import { operationalLog } from './operational-log';
 // lib/auction-service.ts
 import { prisma } from '@/lib/prisma';
 import { AuctionStatus, ReservationStatus, CoinTransactionType } from '@prisma/client';
@@ -613,6 +614,7 @@ export async function placeAuctionBid(
   myBids?: StudentAuctionItemBidSummary[];
   error?: string;
 }> {
+  if (!Number.isSafeInteger(amount) || amount <= 0) return {success:false,error:'Valor do lance inválido.'};
   try {
     const txResult = await prisma.$transaction(async (tx) => {
       // 1. Bloquear linha do lote no PostgreSQL (SELECT ... FOR UPDATE)
@@ -777,8 +779,8 @@ export async function placeAuctionBid(
 
     return txResult;
   } catch (error: any) {
-    console.error('Erro na transação de lance:', error);
-    return { success: false, error: error.message || 'Erro interno ao processar lance.' };
+    operationalLog('auction.bid.failed', error);
+    return { success: false, error: 'Não foi possível processar o lance.' };
   }
 }
 

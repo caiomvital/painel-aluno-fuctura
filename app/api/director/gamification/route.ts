@@ -1,3 +1,4 @@
+import { publicError } from '@/lib/operational-log';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { updateGamificationRuleByDirector } from '@/lib/academic-service';
@@ -21,6 +22,6 @@ export async function PUT(req: NextRequest) {
     const updatedRule = await updateGamificationRuleByDirector(ruleCode, Number(xpValue));
     return NextResponse.json({ success: true, rule: updatedRule });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Erro ao atualizar regra de gamificação.' }, { status: 400 });
+    return NextResponse.json({ error: publicError(error, 'Erro ao atualizar regra de gamificação.', "director.gamification.failed") }, { status: 400 });
   }
 }

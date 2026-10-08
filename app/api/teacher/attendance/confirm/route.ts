@@ -1,3 +1,4 @@
+import { publicError } from '@/lib/operational-log';
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { confirmTeacherAttendance } from "@/lib/academic-service";
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, attendance });
   } catch (error: any) {
     return NextResponse.json(
-      { error: error.message || "Erro ao confirmar presença." },
+      { error: publicError(error, "Erro ao confirmar presença.", "teacher.attendance.confirm.failed") },
       { status: error.statusCode || 400 },
     );
   }

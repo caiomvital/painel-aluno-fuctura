@@ -119,8 +119,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
           </button>
         </form>
 
-        {/* Quick Demo Credentials */}
-        <div className="mt-6 pt-5 border-t border-slate-800/80 space-y-2.5">
+        {/* Development-only demo credentials; never rendered in production. */}
+        {process.env.NODE_ENV !== 'production' && <div className="mt-6 pt-5 border-t border-slate-800/80 space-y-2.5">
           <span className="text-[11px] font-semibold text-slate-400 block text-center">
             Acesso Rápido para Demonstração &amp; Testes:
           </span>
@@ -157,6 +157,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
             </button>
           </div>
         </div>
+
+        }
 
         <div className="mt-4 text-center text-[10px] text-slate-500">
           O sistema identifica automaticamente o perfil de <span className="text-slate-400 font-medium">Aluno</span>, <span className="text-slate-400 font-medium">Professor</span> ou <span className="text-slate-400 font-medium">Diretor</span>.

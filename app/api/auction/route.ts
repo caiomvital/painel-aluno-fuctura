@@ -1,3 +1,4 @@
+import { publicError } from '@/lib/operational-log';
 // app/api/auction/route.ts
 import { NextResponse } from 'next/server';
 import { getAuctionOverview, placeAuctionBid } from '@/lib/auction-service';
@@ -7,7 +8,8 @@ import { prisma } from '@/lib/prisma';
 export async function GET() {
   try {
     const session = await getSession();
-    let studentId = session?.studentId;
+    if (!session) return NextResponse.json({error:'Não autenticado.'},{status:401});
+    let studentId = session.studentId;
 
     if (!studentId && session?.id) {
       const student = await prisma.student.findUnique({
@@ -19,12 +21,12 @@ export async function GET() {
       }
     }
 
-    const overview = await getAuctionOverview(studentId);
+    const overview = await getAuctionOverview(studentId, false);
     return NextResponse.json(overview);
   } catch (err: any) {
-    console.error('Erro ao consultar leilão:', err);
+
     return NextResponse.json(
-      { error: err.message || 'Erro ao consultar leilão.' },
+      { error: publicError(err, 'Erro ao consultar leilão.', "auction.failed") },
       { status: 500 }
     );
   }
@@ -35,7 +37,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { itemId, amount } = body;
 
-    if (!itemId || !amount) {
+    if (typeof itemId !== 'string' || !itemId || !Number.isSafeInteger(amount) || amount <= 0) {
       return NextResponse.json(
         { error: 'ID do item e valor do lance são obrigatórios.' },
         { status: 400 }
@@ -94,9 +96,9 @@ export async function POST(req: Request) {
       myBids: result.myBids,
     });
   } catch (err: any) {
-    console.error('Erro ao processar lance:', err);
+
     return NextResponse.json(
-      { error: err.message || 'Erro ao processar lance.' },
+      { error: publicError(err, 'Erro ao processar lance.', "auction.failed") },
       { status: 500 }
     );
   }

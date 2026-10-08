@@ -1,0 +1,34 @@
+# Modelo: substitua TODOS os REPLACE_* antes de instalar; não executado pelo repositório.
+[Unit]
+Description=Plataforma Fuctura
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=REPLACE_APP_USER
+Group=REPLACE_APP_GROUP
+WorkingDirectory=REPLACE_RELEASE_ROOT/current
+EnvironmentFile=REPLACE_SECURE_ENV_FILE
+Environment=NODE_ENV=production
+Environment=HOSTNAME=127.0.0.1
+Environment=PORT=REPLACE_APP_PORT
+ExecStart=REPLACE_ABSOLUTE_NODE_BIN .next/standalone/server.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGTERM
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=REPLACE_RELEASE_ROOT/current/.next/standalone/.next/cache
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fuctura
+
+[Install]
+WantedBy=multi-user.target

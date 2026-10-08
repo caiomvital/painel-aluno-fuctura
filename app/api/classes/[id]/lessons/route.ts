@@ -1,3 +1,4 @@
+import { publicError } from '@/lib/operational-log';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { getClassLessonsWithDiary } from '@/lib/academic-service';
@@ -22,7 +23,7 @@ export async function GET(
   } catch (error: any) {
     const status = error.statusCode || 500;
     return NextResponse.json(
-      { error: error.message || 'Erro ao carregar aulas da turma.' },
+      { error: publicError(error, 'Erro ao carregar aulas da turma.', "classes.resource.lessons.failed") },
       { status }
     );
   }

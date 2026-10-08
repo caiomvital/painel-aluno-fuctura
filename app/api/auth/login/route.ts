@@ -1,3 +1,6 @@
+import { operationalLog } from '@/lib/operational-log';
+import { publicError } from '@/lib/operational-log';
+import { takeLoginAttempt, clearLoginAttempts } from '@/lib/login-limiter';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { awardDailyLoginXp } from '@/lib/academic-service';
@@ -8,7 +11,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { email, password } = body;
 
-    if (!email || !password) {
+    if (typeof email !== 'string' || typeof password !== 'string' || !email || !password || email.length > 254 || password.length > 1024) {
       return NextResponse.json(
         { error: 'E-mail e senha são obrigatórios para acessar a plataforma.' },
         { status: 400 }
@@ -16,6 +19,7 @@ export async function POST(req: NextRequest) {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    if (!takeLoginAttempt(normalizedEmail)) { operationalLog('auth.login.rate_limited'); return NextResponse.json({error:'Muitas tentativas. Tente novamente mais tarde.'},{status:429,headers:{'Retry-After':'600'}}); }
 
     // 1. Buscar User pelo email via Prisma
     const user = await prisma.user.findUnique({
@@ -51,6 +55,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    clearLoginAttempts(normalizedEmail);
     // 3. Utilizar exclusivamente o role armazenado no User
     const studentId = user.student ? user.student.id : undefined;
     const teacherId = user.teacher ? user.teacher.id : undefined;
@@ -66,7 +71,7 @@ export async function POST(req: NextRequest) {
           loginXpAwarded = xpResult.xpAmount;
         }
       } catch (e) {
-        console.warn('Erro ao atribuir XP de login diário:', e);
+        operationalLog('auth.login.xp.failed', e);
       }
     }
 
@@ -94,9 +99,9 @@ export async function POST(req: NextRequest) {
       loginXpAwarded,
     });
   } catch (error: any) {
-    console.error('Erro na rota de login:', error);
+
     return NextResponse.json(
-      { error: error.message || 'Erro interno no servidor de autenticação.' },
+      { error: publicError(error, 'Erro interno no servidor de autenticação.', "auth.login.failed") },
       { status: 500 }
     );
   }

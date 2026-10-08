@@ -12,6 +12,7 @@ const env = {
   TEST_RUN_ID: `e2e_${randomUUID().replaceAll("-", "")}`,
   NEXT_TELEMETRY_DISABLED: "1",
   NODE_ENV: undefined,
+  APP_URL: undefined,
 };
 function run(args: string[]) {
   const result = spawnSync(process.execPath, args, { env, stdio: "inherit" });
@@ -38,6 +39,8 @@ if (mode === "all") {
   ]);
   run(["node_modules/eslint/bin/eslint.js", "."]);
   run(["run", "build"]);
+  run(["scripts/prepare-standalone.mjs"]);
+  run(["scripts/test-production.ts"]);
 }
 if (mode !== "e2e") {
   run(["scripts/test-marco7.ts"]);

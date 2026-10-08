@@ -12,7 +12,10 @@
     "test:integration": "bun scripts/run-tests.ts integration",
     "test:e2e": "bun scripts/run-tests.ts e2e",
     "test:all": "bun scripts/run-tests.ts all",
-    "test:supabase": "bun scripts/check-supabase.ts"
+    "test:supabase": "bun scripts/check-supabase.ts",
+    "preflight": "bun scripts/preflight.ts",
+    "check:production": "bun scripts/check-production-config.ts",
+    "prepare:standalone": "node scripts/prepare-standalone.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -47,5 +50,8 @@
     "tailwindcss": "4.1.11",
     "tw-animate-css": "^1.4.0",
     "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=24 <25"
   }
 }

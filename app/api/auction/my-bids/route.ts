@@ -1,33 +1,53 @@
-import { NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { getStudentAuctionBids } from '@/lib/auction-service';
+import { publicError } from "@/lib/operational-log";
+import { NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { getStudentAuctionBids } from "@/lib/auction-service";
 
 export async function GET() {
   const session = await getSession();
   if (!session) {
-    return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+    return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   }
 
-  if (session.role !== 'ALUNO') {
-    return NextResponse.json({ error: 'Acesso restrito a alunos.' }, { status: 403 });
+  if (session.role !== "ALUNO") {
+    return NextResponse.json(
+      { error: "Acesso restrito a alunos." },
+      { status: 403 },
+    );
   }
 
-  let studentId = session.studentId;
-  if (!studentId && session.id) {
-    const student = await prisma.student.findUnique({
-      where: { userId: session.id },
-      select: { id: true },
-    });
-    if (student) {
-      studentId = student.id;
+  try {
+    let studentId = session.studentId;
+    if (!studentId && session.id) {
+      const student = await prisma.student.findUnique({
+        where: { userId: session.id },
+        select: { id: true },
+      });
+      if (student) {
+        studentId = student.id;
+      }
     }
-  }
 
-  if (!studentId) {
-    return NextResponse.json({ error: 'Perfil de aluno não encontrado.' }, { status: 403 });
-  }
+    if (!studentId) {
+      return NextResponse.json(
+        { error: "Perfil de aluno não encontrado." },
+        { status: 403 },
+      );
+    }
 
-  const myBids = await getStudentAuctionBids(studentId);
-  return NextResponse.json({ myBids });
+    const myBids = await getStudentAuctionBids(studentId);
+    return NextResponse.json({ myBids });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: publicError(
+          error,
+          "Não foi possível consultar os dados.",
+          "auction.read.failed",
+        ),
+      },
+      { status: 503 },
+    );
+  }
 }

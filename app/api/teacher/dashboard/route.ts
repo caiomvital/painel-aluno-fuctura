@@ -1,3 +1,4 @@
+import { publicError } from '@/lib/operational-log';
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { getTeacherDashboard } from '@/lib/academic-service';
@@ -23,9 +24,9 @@ export async function GET() {
     const data = await getTeacherDashboard(session.id);
     return NextResponse.json(data);
   } catch (error: any) {
-    console.error('Erro ao carregar dados do professor:', error);
+
     return NextResponse.json(
-      { error: error.message || 'Erro ao carregar painel do professor.' },
+      { error: publicError(error, 'Erro ao carregar painel do professor.', "teacher.dashboard.failed") },
       { status: 500 }
     );
   }

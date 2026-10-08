@@ -13,7 +13,7 @@ function getPrismaClient(): PrismaClient {
 
   return new PrismaClient({
     datasources: dbUrl ? { db: { url: dbUrl } } : undefined,
-    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+    log: [], // Errors are logged through the allowlisted operational logger.
   });
 }
 

@@ -1,3 +1,4 @@
+import { publicError } from '@/lib/operational-log';
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import {
@@ -35,10 +36,10 @@ export async function GET(req: NextRequest) {
     const data = await getStudentAttendanceHistory(studentId, session);
     return NextResponse.json(data);
   } catch (error: any) {
-    console.error("Erro ao buscar histórico de frequência do aluno:", error);
+
     return NextResponse.json(
       {
-        error: error.message || "Erro ao carregar frequência escolar do aluno.",
+        error: publicError(error, "Erro ao carregar frequência escolar do aluno.", "admin.student_attendance.failed"),
       },
       { status: error.statusCode || 500 },
     );
@@ -106,9 +107,9 @@ export async function POST(req: NextRequest) {
       history: updatedHistory,
     });
   } catch (error: any) {
-    console.error("Erro ao atualizar frequência escolar:", error);
+
     return NextResponse.json(
-      { error: error.message || "Erro ao atualizar frequência escolar." },
+      { error: publicError(error, "Erro ao atualizar frequência escolar.", "admin.student_attendance.failed") },
       { status: error.statusCode || 500 },
     );
   }

@@ -1,3 +1,4 @@
+import { publicError } from '@/lib/operational-log';
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { rejectTeacherAttendance } from "@/lib/academic-service";
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, attendance });
   } catch (error: any) {
     return NextResponse.json(
-      { error: error.message || "Erro ao recusar presença." },
+      { error: publicError(error, "Erro ao recusar presença.", "teacher.attendance.reject.failed") },
       { status: error.statusCode || 400 },
     );
   }

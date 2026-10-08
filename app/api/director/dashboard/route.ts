@@ -1,3 +1,4 @@
+import { publicError } from '@/lib/operational-log';
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { getDirectorDashboard } from '@/lib/academic-service';
@@ -22,9 +23,9 @@ export async function GET() {
     const data = await getDirectorDashboard(session.id);
     return NextResponse.json(data);
   } catch (error: any) {
-    console.error('Erro ao carregar dados da diretoria:', error);
+
     return NextResponse.json(
-      { error: error.message || 'Erro ao carregar painel da diretoria.' },
+      { error: publicError(error, 'Erro ao carregar painel da diretoria.', "director.dashboard.failed") },
       { status: 500 }
     );
   }

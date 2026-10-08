@@ -1,3 +1,4 @@
+import { publicError } from '@/lib/operational-log';
 // app/api/director/students/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
@@ -22,7 +23,7 @@ export async function GET() {
     const data = await getDirectorDashboard(session.id);
     return NextResponse.json({ students: data.students });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Erro ao listar alunos.' }, { status: 500 });
+    return NextResponse.json({ error: publicError(error, 'Erro ao listar alunos.', "director.students.failed") }, { status: 500 });
   }
 }
 
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { name, email, classId, registrationNumber, currentXp } = body;
+    const { name, email, classId, registrationNumber, currentXp, initialPassword } = body;
 
     if (!name || !email) {
       return NextResponse.json({ error: 'Nome e e-mail são obrigatórios.' }, { status: 400 });
@@ -47,6 +48,7 @@ export async function POST(req: NextRequest) {
     const student = await createStudentByDirector({
       name,
       email,
+      initialPassword,
       classId,
       registrationNumber,
       currentXp: currentXp ? Number(currentXp) : 100,
@@ -54,7 +56,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, student });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Erro ao matricular aluno.' }, { status: 400 });
+    return NextResponse.json({ error: publicError(error, 'Erro ao matricular aluno.', "director.students.failed") }, { status: 400 });
   }
 }
 
@@ -95,7 +97,7 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json({ success: true, student: updated });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Erro ao atualizar aluno.' }, { status: 400 });
+    return NextResponse.json({ error: publicError(error, 'Erro ao atualizar aluno.', "director.students.failed") }, { status: 400 });
   }
 }
 
@@ -124,6 +126,6 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true, message: 'Aluno removido com sucesso.' });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Erro ao remover aluno.' }, { status: 400 });
+    return NextResponse.json({ error: publicError(error, 'Erro ao remover aluno.', "director.students.failed") }, { status: 400 });
   }
 }

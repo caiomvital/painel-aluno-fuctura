@@ -1,3 +1,4 @@
+import { publicError } from '@/lib/operational-log';
 // app/api/director/coins/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ students });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Erro ao consultar Coins.' }, { status: 500 });
+    return NextResponse.json({ error: publicError(err, 'Erro ao consultar Coins.', "director.coins.failed") }, { status: 500 });
   }
 }
 
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, ...result });
   } catch (err: any) {
     return NextResponse.json(
-      { error: err.message || 'Erro ao ajustar Coins.' },
+      { error: publicError(err, 'Erro ao ajustar Coins.', "director.coins.failed") },
       { status: 400 }
     );
   }

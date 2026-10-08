@@ -1,3 +1,4 @@
+import { initialPasswordHash } from "./account-password";
 import {lessonTiming} from "./teacher-metrics";
 // lib/academic-service.ts
 import { prisma } from '@/lib/prisma';
@@ -941,6 +942,7 @@ export async function createStudentByDirector(data: {
   classId?: string;
   registrationNumber?: string;
   currentXp?: number;
+  initialPassword?: string;
 }) {
   validatePerson(data);
   const normalizedEmail = data.email.toLowerCase().trim();
@@ -949,8 +951,7 @@ export async function createStudentByDirector(data: {
   if (data.classId && !await prisma.class.findUnique({ where: { id: data.classId } })) throw new Error("Turma inválida.");
   const regNumber = data.registrationNumber || `MAT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  // Senha padrão inicial hash com bcrypt (Password123!)
-  const defaultPasswordHash = '$2b$10$gbSD4FDfU12pM3c67/Ynt.8YIlqbP1r2xMTvokm8QHG1zPp5WOLrW';
+  const defaultPasswordHash = await initialPasswordHash(data.initialPassword);
 
   return await prisma.$transaction(async (tx) => {
     // 1. Criar User
@@ -1171,10 +1172,10 @@ export async function deleteStudentByDirector(studentId: string) {
 // 6. CRUD DE PROFESSORES COM TRANSAÇÃO (FASE 6)
 // ==========================================
 
-export async function createTeacherByDirector(data: { name: string; email: string; specialty?: string }) {
+export async function createTeacherByDirector(data: { name: string; email: string; specialty?: string; initialPassword?: string }) {
   validatePerson(data);
   const normalizedEmail = data.email.toLowerCase().trim();
-  const defaultPasswordHash = '$2b$10$gbSD4FDfU12pM3c67/Ynt.8YIlqbP1r2xMTvokm8QHG1zPp5WOLrW';
+  const defaultPasswordHash = await initialPasswordHash(data.initialPassword);
 
   return await prisma.$transaction(async (tx) => {
     const user = await tx.user.create({
@@ -1430,49 +1431,28 @@ export async function deleteClassByDirector(classId: string) {
 // ==========================================
 
 export async function requestStudentAttendance(lessonId: string, studentUserId: string) {
-  const student = await prisma.student.findUnique({
-    where: { userId: studentUserId },
+  return prisma.$transaction(async (tx) => {
+    const student = await tx.student.findUnique({ where: { userId: studentUserId } });
+    const lesson = await tx.lesson.findUnique({ where: { id: lessonId } });
+    const enrollment = student && lesson && await tx.enrollment.findFirst({
+      where: { studentId: student.id, classId: lesson.classId, status: 'ACTIVE' },
+    });
+    if (!student || !lesson || !enrollment) {
+      throw Object.assign(new Error('Acesso negado à aula.'), { statusCode: 403 });
+    }
+    const record = await tx.attendance.upsert({
+      where: { lessonId_studentId: { lessonId, studentId: student.id } },
+      create: { lessonId, studentId: student.id, status: 'PENDING', requestedAt: new Date() },
+      update: {},
+    });
+    // Conditional update preserves confirmations, including concurrent ones.
+    await tx.attendance.updateMany({
+      where: { id: record.id, status: { in: ['PENDING', 'ABSENT'] } },
+      data: { status: 'PENDING', requestedAt: new Date() },
+    });
+    const attendance = await tx.attendance.findUniqueOrThrow({ where: { id: record.id } });
+    return { id: attendance.id, lessonId, studentId: student.id, status: attendance.status, requestedAt: attendance.requestedAt.toISOString() };
   });
-
-  if (!student) {
-    throw new Error('Apenas alunos matriculados podem solicitar presença.');
-  }
-
-  const lesson = await prisma.lesson.findUnique({
-    where: { id: lessonId },
-  });
-
-  if (!lesson) {
-    throw new Error('Aula não encontrada.');
-  }
-
-  // A constraint @@unique([lessonId, studentId]) garante unicidade
-  const attendance = await prisma.attendance.upsert({
-    where: {
-      lessonId_studentId: {
-        lessonId,
-        studentId: student.id,
-      },
-    },
-    update: {
-      status: 'PENDING',
-      requestedAt: new Date(),
-    },
-    create: {
-      lessonId,
-      studentId: student.id,
-      status: 'PENDING',
-      requestedAt: new Date(),
-    },
-  });
-
-  return {
-    id: attendance.id,
-    lessonId: attendance.lessonId,
-    studentId: attendance.studentId,
-    status: attendance.status,
-    requestedAt: attendance.requestedAt.toISOString(),
-  };
 }
 
 export async function confirmTeacherAttendance(
@@ -2257,15 +2237,16 @@ export async function updateLessonDiary(
         !trimmedUrl.startsWith("https://")
       ) {
         const err = new Error(
-          `A URL "${trimmedUrl}" deve iniciar com http:// ou https://`,
+          "A URL deve iniciar com http:// ou https://",
         );
         (err as any).statusCode = 400;
         throw err;
       }
       try {
-        new URL(trimmedUrl);
+        const parsed = new URL(trimmedUrl);
+        if (parsed.username || parsed.password) throw new Error();
       } catch {
-        const err = new Error(`A URL "${trimmedUrl}" é inválida.`);
+        const err = new Error("A URL é inválida ou contém credenciais.");
         (err as any).statusCode = 400;
         throw err;
       }

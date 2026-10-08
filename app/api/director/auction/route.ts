@@ -1,3 +1,4 @@
+import { publicError } from '@/lib/operational-log';
 // app/api/director/auction/route.ts
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
@@ -25,9 +26,9 @@ export async function GET() {
       settings: hasSeason ? overview.settings : null,
     });
   } catch (err: any) {
-    console.error('Erro ao consultar leilão da diretoria:', err);
+
     return NextResponse.json(
-      { error: err.message || 'Erro ao consultar leilão.' },
+      { error: publicError(err, 'Erro ao consultar leilão.', "director.auction.failed") },
       { status: 500 }
     );
   }
@@ -86,8 +87,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, item: newItem });
   } catch (err: any) {
-    console.error('Erro ao processar item do leilão:', err);
-    return NextResponse.json({ error: err.message || 'Erro ao processar item do leilão.' }, { status: 500 });
+
+    return NextResponse.json({ error: publicError(err, 'Erro ao processar item do leilão.', "director.auction.failed") }, { status: 500 });
   }
 }
 
@@ -112,8 +113,8 @@ export async function PUT(req: Request) {
 
     return NextResponse.json({ success: true, item: updated });
   } catch (err: any) {
-    console.error('Erro ao atualizar item do leilão:', err);
-    return NextResponse.json({ error: err.message || 'Erro ao atualizar item do leilão.' }, { status: 500 });
+
+    return NextResponse.json({ error: publicError(err, 'Erro ao atualizar item do leilão.', "director.auction.failed") }, { status: 500 });
   }
 }
 
@@ -138,7 +139,7 @@ export async function DELETE(req: Request) {
 
     return NextResponse.json({ success: true, message: 'Item removido do leilão com sucesso.' });
   } catch (err: any) {
-    console.error('Erro ao remover item do leilão:', err);
-    return NextResponse.json({ error: err.message || 'Erro ao remover item do leilão.' }, { status: 500 });
+
+    return NextResponse.json({ error: publicError(err, 'Erro ao remover item do leilão.', "director.auction.failed") }, { status: 500 });
   }
 }

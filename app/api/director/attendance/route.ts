@@ -1,3 +1,4 @@
+import { publicError } from '@/lib/operational-log';
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import {
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ attendance });
   } catch (error: any) {
     return NextResponse.json(
-      { error: error.message || "Erro ao resolver presença." },
+      { error: publicError(error, "Erro ao resolver presença.", "director.attendance.failed") },
       { status: error.statusCode || 400 },
     );
   }

@@ -1,3 +1,4 @@
+import { publicError } from '@/lib/operational-log';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { getLessonWithDiary, updateLessonDiary } from '@/lib/academic-service';
@@ -22,7 +23,7 @@ export async function GET(
   } catch (error: any) {
     const status = error.statusCode || 500;
     return NextResponse.json(
-      { error: error.message || 'Erro ao carregar diário de aula.' },
+      { error: publicError(error, 'Erro ao carregar diário de aula.', "lessons.resource.failed") },
       { status }
     );
   }
@@ -64,7 +65,7 @@ export async function PUT(
   } catch (error: any) {
     const status = error.statusCode || 500;
     return NextResponse.json(
-      { error: error.message || 'Erro ao atualizar diário de aula.' },
+      { error: publicError(error, 'Erro ao atualizar diário de aula.', "lessons.resource.failed") },
       { status }
     );
   }

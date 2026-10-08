@@ -142,6 +142,7 @@ export default function DirectorAcademicForm({
           ) : (
             <>
               {input("email", "E-mail", "email")}
+              {!editor.id && input("initialPassword", "Senha inicial (12 a 72 caracteres)", "password", process.env.NODE_ENV === "production")}
               {editor.kind === "teachers"
                 ? input("specialty", "Especialidade", "text", false)
                 : input(

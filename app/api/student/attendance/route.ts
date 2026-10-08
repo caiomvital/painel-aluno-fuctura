@@ -1,3 +1,4 @@
+import { publicError } from '@/lib/operational-log';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { requestStudentAttendance } from '@/lib/academic-service';
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const { lessonId } = await req.json();
-    if (!lessonId) {
+    if (typeof lessonId !== 'string' || !lessonId) {
       return NextResponse.json({ error: 'ID da aula é obrigatório.' }, { status: 400 });
     }
 
@@ -22,6 +23,6 @@ export async function POST(req: NextRequest) {
     const attendance = await requestStudentAttendance(lessonId, session.id);
     return NextResponse.json({ success: true, attendance });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Erro ao registrar solicitação de presença.' }, { status: 400 });
+    return NextResponse.json({ error: publicError(error, 'Erro ao registrar solicitação de presença.', "student.attendance.failed") }, { status: error.statusCode || 400 });
   }
 }

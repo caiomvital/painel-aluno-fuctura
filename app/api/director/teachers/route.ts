@@ -1,3 +1,4 @@
+import { publicError } from '@/lib/operational-log';
 // app/api/director/teachers/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
@@ -22,7 +23,7 @@ export async function GET() {
     const data = await getDirectorDashboard(session.id);
     return NextResponse.json({ teachers: data.teachers });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Erro ao listar professores.' }, { status: 500 });
+    return NextResponse.json({ error: publicError(error, 'Erro ao listar professores.', "director.teachers.failed") }, { status: 500 });
   }
 }
 
@@ -38,16 +39,16 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { name, email, specialty } = body;
+    const { name, email, specialty, initialPassword } = body;
 
     if (!name || !email) {
       return NextResponse.json({ error: 'Nome e e-mail são obrigatórios.' }, { status: 400 });
     }
 
-    const teacher = await createTeacherByDirector({ name, email, specialty });
+    const teacher = await createTeacherByDirector({ name, email, specialty, initialPassword });
     return NextResponse.json({ success: true, teacher });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Erro ao criar professor.' }, { status: 400 });
+    return NextResponse.json({ error: publicError(error, 'Erro ao criar professor.', "director.teachers.failed") }, { status: 400 });
   }
 }
 
@@ -76,7 +77,7 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json({ success: true, teacher: updated });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Erro ao atualizar professor.' }, { status: 400 });
+    return NextResponse.json({ error: publicError(error, 'Erro ao atualizar professor.', "director.teachers.failed") }, { status: 400 });
   }
 }
 
@@ -105,6 +106,6 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true, message: 'Professor removido com sucesso.' });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Erro ao remover professor.' }, { status: 400 });
+    return NextResponse.json({ error: publicError(error, 'Erro ao remover professor.', "director.teachers.failed") }, { status: 400 });
   }
 }

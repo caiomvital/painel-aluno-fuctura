@@ -1,3 +1,4 @@
+import { publicError } from '@/lib/operational-log';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import {
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, class: newClass });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Erro ao criar turma.' }, { status: 400 });
+    return NextResponse.json({ error: publicError(error, 'Erro ao criar turma.', "director.classes.failed") }, { status: 400 });
   }
 }
 
@@ -75,7 +76,7 @@ export async function PUT(req: NextRequest) {
     const updated = await updateClassByDirector(classId, data);
     return NextResponse.json({ success: true, class: updated });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Erro ao atualizar turma.' }, { status: 400 });
+    return NextResponse.json({ error: publicError(error, 'Erro ao atualizar turma.', "director.classes.failed") }, { status: 400 });
   }
 }
 
@@ -103,6 +104,6 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true, message: 'Turma removida com sucesso.' });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Erro ao remover turma.' }, { status: 400 });
+    return NextResponse.json({ error: publicError(error, 'Erro ao remover turma.', "director.classes.failed") }, { status: 400 });
   }
 }

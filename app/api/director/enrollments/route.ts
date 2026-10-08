@@ -1,3 +1,4 @@
+import { publicError } from '@/lib/operational-log';
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import {
@@ -30,7 +31,7 @@ async function change(req: Request, editing: boolean) {
         error:
           error.code === "P2002"
             ? "Matrícula já existe."
-            : error.message || "Erro ao salvar matrícula.",
+            : publicError(error, "Erro ao salvar matrícula.", "director.enrollments.failed"),
       },
       { status: error.code === "P2002" ? 409 : error.statusCode || 400 },
     );
