@@ -62,6 +62,7 @@ export async function POST(req: NextRequest) {
         session.id,
         body.id,
         body.decision,
+        typeof body.role === "string" ? body.role : undefined,
       ),
     });
   } catch (error) {

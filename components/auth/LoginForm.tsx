@@ -119,7 +119,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
             )}
           </button>
         </form>
-        <Link href="/cadastro" className="mt-5 block text-center text-sm text-cyan-300 underline">Criar minha conta de aluno</Link>
+        <Link href="/cadastro" className="mt-5 block text-center text-sm text-cyan-300 underline">Criar minha conta</Link>
 
         {/* Development-only demo credentials; never rendered in production. */}
         {process.env.NODE_ENV !== 'production' && <div className="mt-6 pt-5 border-t border-slate-800/80 space-y-2.5">

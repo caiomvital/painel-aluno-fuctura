@@ -6,7 +6,7 @@ type Request = {
   course: keyof typeof registrationCourses;
   status: string;
   createdAt: string;
-  user: { name: string; email: string };
+  user: { name: string; email: string; role: "ALUNO" | "PROFESSOR" };
 };
 export function RegistrationRequests({
   onApproved,
@@ -19,6 +19,7 @@ export function RegistrationRequests({
   const [busy, setBusy] = useState<string | null>(null);
   const [filter, setFilter] = useState("PENDING");
   const [notice, setNotice] = useState("");
+  const [roles, setRoles] = useState<Record<string, string>>({});
   const load = useCallback(async (signal?: AbortSignal) => {
     const response = await fetch("/api/director/registrations", { signal });
     const data = await response.json();
@@ -124,13 +125,37 @@ export function RegistrationRequests({
               <p className="text-sm">
                 {registrationCourses[item.course]} · {statusNames[item.status]}{" "}
                 · {new Date(item.createdAt).toLocaleDateString("pt-BR")}
+                {item.status === "APPROVED" &&
+                  ` · ${item.user.role === "PROFESSOR" ? "Professor" : "Aluno"}`}
               </p>
               {item.status === "PENDING" && (
                 <div className="mt-3 flex flex-wrap gap-3">
+                  <label className="text-sm">
+                    Perfil ao aprovar
+                    <select
+                      aria-label={`Perfil de ${item.user.name}`}
+                      value={roles[item.id] ?? ""}
+                      disabled={busy !== null}
+                      onChange={(event) =>
+                        setRoles((current) => ({
+                          ...current,
+                          [item.id]: event.target.value,
+                        }))
+                      }
+                      className="ml-2 rounded-lg border border-slate-700 bg-slate-950 p-2"
+                    >
+                      <option value="">Selecione</option>
+                      <option value="ALUNO">Aluno</option>
+                      <option value="PROFESSOR">Professor</option>
+                    </select>
+                  </label>
                   {(["APPROVED", "REJECTED"] as const).map((decision) => (
                     <button
                       key={decision}
-                      disabled={busy !== null}
+                      disabled={
+                        busy !== null ||
+                        (decision === "APPROVED" && !roles[item.id])
+                      }
                       className="rounded-lg border border-slate-600 px-3 py-2 disabled:opacity-50"
                       onClick={async () => {
                         setBusy(item.id);
@@ -142,7 +167,13 @@ export function RegistrationRequests({
                             {
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ id: item.id, decision }),
+                              body: JSON.stringify({
+                                id: item.id,
+                                decision,
+                                ...(decision === "APPROVED"
+                                  ? { role: roles[item.id] }
+                                  : {}),
+                              }),
                             },
                           );
                           const data = await response.json();
@@ -157,7 +188,7 @@ export function RegistrationRequests({
                           );
                           setNotice(
                             decision === "APPROVED"
-                              ? "Cadastro aprovado. O aluno já pode entrar."
+                              ? `Cadastro aprovado. ${roles[item.id] === "PROFESSOR" ? "O professor" : "O aluno"} já pode entrar.`
                               : "Cadastro rejeitado. O acesso permanece bloqueado.",
                           );
                           if (decision === "APPROVED") await onApproved();

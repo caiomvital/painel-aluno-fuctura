@@ -9,7 +9,7 @@ const summary = {
   status: true,
   createdAt: true,
   reviewedAt: true,
-  user: { select: { name: true, email: true } },
+  user: { select: { name: true, email: true, role: true } },
 } as const;
 export async function requestRegistration(body: unknown) {
   const data = registrationInput(body);
@@ -44,6 +44,7 @@ export async function reviewRegistration(
   actorId: string,
   id: string,
   decision: string,
+  role?: string,
 ) {
   if (
     typeof id !== "string" ||
@@ -52,6 +53,8 @@ export async function reviewRegistration(
     !["APPROVED", "REJECTED"].includes(decision)
   )
     throw failure("Solicitação ou decisão inválida.", 400);
+  if (decision === "APPROVED" && !["ALUNO", "PROFESSOR"].includes(role ?? ""))
+    throw failure("Selecione o perfil Aluno ou Professor.", 400);
   return prisma.$transaction(async (tx) => {
     const actor = await tx.user.findUnique({
       where: { id: actorId },
@@ -66,22 +69,32 @@ export async function reviewRegistration(
       include: { user: { select: { role: true } } },
     });
     if (!request) throw failure("Solicitação não encontrada.", 404);
-    if (request.status === decision)
+    if (request.status === decision) {
+      if (decision === "APPROVED" && request.user.role !== role)
+        throw failure("Cadastro já aprovado com outro perfil.", 409);
       return tx.registrationRequest.findUniqueOrThrow({
         where: { id },
         select: summary,
       });
+    }
     if (request.status !== "PENDING")
       throw failure("Solicitação já resolvida.", 409);
     if (request.user.role !== "ALUNO")
       throw failure("Perfil incompatível.", 409);
-    if (decision === "APPROVED")
+    if (decision === "APPROVED" && role === "ALUNO")
       await tx.student.create({
         data: {
           userId: request.userId,
           registrationNumber: `CAD-${request.id}`,
           streak: { create: {} },
         },
+      });
+    if (decision === "APPROVED" && role === "PROFESSOR")
+      await tx.teacher.create({ data: { userId: request.userId } });
+    if (decision === "APPROVED")
+      await tx.user.update({
+        where: { id: request.userId },
+        data: { role: role as "ALUNO" | "PROFESSOR" },
       });
     // Model defaults start XP/Coins at zero. Only the existing login/presence services award rewards.
     return tx.registrationRequest.update({
