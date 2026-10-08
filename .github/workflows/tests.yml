@@ -7,6 +7,7 @@ permissions:
   contents: read
 jobs:
   marco7:
+    name: Marcos 7 e 8 — PostgreSQL e Playwright
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     services:
@@ -42,7 +43,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: marco7-test-artifacts
+          name: marcos7-8-test-artifacts
           path: |
             playwright-report/
             test-results/

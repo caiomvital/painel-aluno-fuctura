@@ -39,6 +39,9 @@ if (mode === "all") {
   run(["node_modules/eslint/bin/eslint.js", "."]);
   run(["run", "build"]);
 }
-if (mode !== "e2e") run(["scripts/test-marco7.ts"]);
+if (mode !== "e2e") {
+  run(["scripts/test-marco7.ts"]);
+  run(["scripts/test-marco8.ts"]);
+}
 if (mode !== "integration")
   run(["node_modules/@playwright/test/cli.js", "test"]);

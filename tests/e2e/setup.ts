@@ -83,6 +83,40 @@ export default async function setup() {
           },
         });
       }
+      for (const [id, lessonNumber, title, date] of [
+        [f.m8Lesson, 3, "Gestão pedagógica Marco 8", "2026-01-10T12:00:00Z"],
+        [f.futureLesson, 4, "Próxima aula Marco 8", "2099-01-01T12:00:00Z"],
+      ] as const)
+        await db.lesson.create({
+          data: {
+            id,
+            classId: f.class,
+            teacherId: `${f.teacher}_profile`,
+            lessonNumber,
+            title,
+            plannedContent: "",
+            date: new Date(date),
+            scheduleTime: "08:30 - 12:30",
+            status: "SCHEDULED",
+          },
+        });
+      await db.attendance.createMany({
+        data: [
+          {
+            id: f.attendance,
+            lessonId: f.m8Lesson,
+            studentId: `${f.student}_profile`,
+            status: "PENDING",
+          },
+          {
+            id: f.rejection,
+            lessonId: f.emptyLesson,
+            studentId: `${f.student}_profile`,
+            status: "PENDING",
+            justificationReason: "Pedido de teste",
+          },
+        ],
+      });
       // A real, empty auction item avoids unrelated automatic demo seeding on dashboards.
       await db.auctionSeason.create({
         data: {

@@ -70,7 +70,7 @@ async function login(page: Page, role: string, project: string) {
       role === "director"
         ? /Turmas & Aulas/
         : ["teacher", "otherTeacher"].includes(role)
-          ? "Minhas Turmas & Alunos"
+          ? "Minhas Turmas"
           : "Aulas & Cronograma",
   });
   await expect(dashboard).toBeVisible();
@@ -83,7 +83,7 @@ async function login(page: Page, role: string, project: string) {
 }
 async function openTeacher(page: Page, project: string) {
   const f = ids(project);
-  await page.getByRole("button", { name: "Minhas Turmas & Alunos" }).click();
+  await page.getByRole("button", { name: "Minhas Turmas" }).click();
   const card = page.getByTestId(`class-${f.class}`);
   await expect(card).toBeVisible();
   if (!(await card.getByRole("button", { name: /Diário de Aulas/ }).count()))
@@ -333,7 +333,7 @@ test.describe("Marco 7 com autenticação e PostgreSQL reais", () => {
     ).toBe(403);
     await page.context().clearCookies();
     await login(page, "otherTeacher", info.project.name);
-    await page.getByRole("button", { name: "Minhas Turmas & Alunos" }).click();
+    await page.getByRole("button", { name: "Minhas Turmas" }).click();
     await expect(page.getByTestId(`class-${f.class}`)).toHaveCount(0);
     expect(
       (

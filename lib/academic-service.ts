@@ -1,3 +1,4 @@
+import {lessonTiming} from "./teacher-metrics";
 // lib/academic-service.ts
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
@@ -442,168 +443,127 @@ export async function getTeacherDashboard(userId: string) {
     where: { userId },
     include: { user: true },
   });
-
-  if (!teacher) {
-    return {
-      teacher: null,
-      classes: [],
-      upcomingLesson: null,
-      pendingAttendances: [],
-    };
-  }
-
-  // Turmas do professor com alunos e aulas
-  const teacherClasses = await prisma.class.findMany({
-    where: { teacherId: teacher.id },
-    include: {
-      course: true,
-      enrollments: {
-        where: { status: 'ACTIVE' },
+  const now = new Date();
+  const rows = teacher
+    ? await prisma.class.findMany({
+        where: { teacherId: teacher.id },
+        orderBy: { name: "asc" },
         include: {
-          student: {
+          course: true,
+          enrollments: { include: { student: { include: { user: true } } } },
+          lessons: {
+            orderBy: { date: "asc" },
             include: {
-              user: true,
-              attendances: true,
+              contents: true,
+              attendances: {
+                include: { student: { include: { user: true } } },
+              },
             },
           },
         },
-      },
-      lessons: {
-        include: { contents: true },
-        orderBy: { lessonNumber: 'asc' },
-      },
-    },
-  });
-
-  const classesData = teacherClasses.map((cls) => {
-    const classLessonIds = new Set(cls.lessons.map((l) => l.id));
-    const completedLessons = cls.lessons.filter((l) => l.status === 'COMPLETED');
-    const scheduledLessons = cls.lessons.filter((l) => l.status === 'SCHEDULED' || l.status === 'IN_PROGRESS');
-    const nextLesson = scheduledLessons.length > 0 ? scheduledLessons[0] : null;
-
-    const students = cls.enrollments
-      .map((e) => e.student)
-      .filter((s): s is NonNullable<typeof s> => s !== null)
-      .map((s) => {
-        const confirmedCount = s.attendances.filter(
-          (a) => a.status === 'PRESENT' && classLessonIds.has(a.lessonId)
-        ).length;
-
-        return {
-          id: s.id,
-          name: s.user ? s.user.name : 'Aluno',
-          email: s.user ? s.user.email : '',
-          registrationNumber: s.registrationNumber,
-          currentXp: s.currentXp,
-          confirmedCount,
-        };
-      });
-
+      })
+    : [];
+  const classes = rows.map((cls) => {
+    const lessons = cls.lessons.map((l) => ({
+      id: l.id,
+      classId: cls.id,
+      className: cls.name,
+      courseName: cls.course.name,
+      lessonNumber: l.lessonNumber,
+      title: l.title,
+      date: l.date.toISOString(),
+      scheduleTime: l.scheduleTime,
+      status: l.status,
+      plannedTopics: extractPlannedTopics(l),
+      taughtTopics: extractTaughtTopics(l),
+      materials: parseMaterialsList(l.materials),
+      ...lessonTiming(l.date, l.scheduleTime, now),
+    }));
+    const students = cls.enrollments.map((e) => {
+      const records = cls.lessons.flatMap((l) =>
+        l.attendances.filter((a) => a.studentId === e.studentId),
+      );
+      const confirmedCount = records.filter(
+        (a) => a.status === "PRESENT",
+      ).length;
+      const resolved = records.filter((a) => a.status !== "PENDING").length;
+      return {
+        id: e.studentId,
+        name: e.student.user.name,
+        enrollmentStatus: e.status,
+        currentXp: e.student.currentXp,
+        confirmedCount,
+        absentCount: records.filter((a) => a.status === "ABSENT").length,
+        pendingCount: records.filter((a) => a.status === "PENDING").length,
+        attendanceRate: resolved
+          ? Math.round((confirmedCount / resolved) * 100)
+          : null,
+        resolvedCount: resolved,
+      };
+    });
     return {
       id: cls.id,
       name: cls.name,
       code: cls.code,
-      courseName: cls.course ? cls.course.name : 'Curso',
+      courseName: cls.course.name,
+      status: cls.status,
       daysOfWeek: cls.daysOfWeek,
       scheduleTime: cls.scheduleTime,
-      lessonsPerWeek: cls.lessonsPerWeek,
-      totalStudents: students.length,
       students,
-      totalLessons: cls.lessons.length,
-      completedLessonsCount: completedLessons.length,
-      nextLesson: nextLesson
-        ? {
-            id: nextLesson.id,
-            lessonNumber: nextLesson.lessonNumber,
-            title: nextLesson.title,
-            date: nextLesson.date.toISOString(),
-            scheduleTime: nextLesson.scheduleTime,
-            plannedContent: nextLesson.plannedContent,
-            actualContent: nextLesson.actualContent,
-            plannedTopics: extractPlannedTopics(nextLesson),
-            taughtTopics: extractTaughtTopics(nextLesson),
-            materials: parseMaterialsList(nextLesson.materials),
-          }
-        : null,
-      lessons: cls.lessons.map((l) => ({
-        id: l.id,
-        lessonNumber: l.lessonNumber,
-        title: l.title,
-        date: l.date.toISOString(),
-        scheduleTime: l.scheduleTime,
-        status: l.status,
-        plannedTopics: extractPlannedTopics(l),
-        taughtTopics: extractTaughtTopics(l),
-        materials: parseMaterialsList(l.materials),
-      })),
+      totalStudents: students.filter((s) => s.enrollmentStatus === "ACTIVE")
+        .length,
+      lessons,
+      nextLesson:
+        lessons.find(
+          (l) =>
+            (l.startsInFuture || (!l.isPast && l.status === "IN_PROGRESS")) &&
+            (l.status === "SCHEDULED" || l.status === "IN_PROGRESS"),
+        ) ?? null,
     };
   });
-
-  // Próxima aula geral de todas as turmas do professor
-  const teacherClassIds = teacherClasses.map((c) => c.id);
-  const allScheduledLessons = await prisma.lesson.findMany({
-    where: {
-      classId: { in: teacherClassIds },
-      status: { in: ['SCHEDULED', 'IN_PROGRESS'] },
-    },
-    include: { class: true },
-    orderBy: { date: 'asc' },
-  });
-
-  const upcomingLesson = allScheduledLessons.length > 0 ? allScheduledLessons[0] : null;
-
-  // Solicitações de presença pendentes para turmas deste professor
-  const pendingAttendances = await prisma.attendance.findMany({
-    where: {
-      status: 'PENDING',
-      lesson: {
-        classId: { in: teacherClassIds },
-      },
-    },
-    include: {
-      lesson: {
-        include: { class: true },
-      },
-      student: {
-        include: { user: true },
-      },
-    },
-    orderBy: { requestedAt: 'asc' },
-  });
-
+  const lessons = classes.flatMap((c) => c.lessons);
+  const attendances = rows.flatMap((c) =>
+    c.lessons.flatMap((l) =>
+      l.attendances.map((a) => ({
+        id: a.id,
+        classId: c.id,
+        className: c.name,
+        lessonId: l.id,
+        lessonTitle: l.title,
+        date: l.date.toISOString(),
+        studentId: a.studentId,
+        studentName: a.student.user.name,
+        status: a.status,
+        justification: a.justificationReason,
+        rejectionReason: a.rejectionReason,
+        requestedAt: a.requestedAt.toISOString(),
+      })),
+    ),
+  );
   return {
-    teacher: {
-      id: teacher.id,
-      name: teacher.user.name,
-      email: teacher.user.email,
-      specialty: teacher.specialty,
-      biography: teacher.biography,
+    teacher: teacher ? { id: teacher.id, name: teacher.user.name } : null,
+    classes,
+    attendances,
+    upcomingLesson:
+      classes
+        .flatMap((c) => (c.nextLesson ? [c.nextLesson] : []))
+        .sort((a, b) => a.date.localeCompare(b.date))[0] ?? null,
+    pendingAttendances: attendances.filter((a) => a.status === "PENDING"),
+    pendingDiaries: lessons.filter(
+      (l) =>
+        l.status !== "CANCELLED" && (l.isPast || l.status === "COMPLETED") && l.taughtTopics.length === 0,
+    ),
+    indicators: {
+      scheduled: lessons.filter((l) => l.status === "SCHEDULED").length,
+      past: lessons.filter((l) => l.isPast).length,
+      completed: lessons.filter((l) => l.status === "COMPLETED").length,
+      diaries: lessons.filter((l) => l.taughtTopics.length > 0).length,
     },
-    classes: classesData,
-    upcomingLesson: upcomingLesson
-      ? {
-          id: upcomingLesson.id,
-          title: upcomingLesson.title,
-          lessonNumber: upcomingLesson.lessonNumber,
-          date: upcomingLesson.date.toISOString(),
-          scheduleTime: upcomingLesson.scheduleTime,
-          className: upcomingLesson.class.name,
-          plannedContent: upcomingLesson.plannedContent,
-        }
-      : null,
-    pendingAttendances: pendingAttendances.map((att) => ({
-      id: att.id,
-      lessonId: att.lessonId,
-      lessonTitle: att.lesson.title,
-      lessonNumber: att.lesson.lessonNumber,
-      className: att.lesson.class.name,
-      studentId: att.studentId,
-      studentName: att.student.user ? att.student.user.name : 'Aluno',
-      studentReg: att.student.registrationNumber,
-      requestedAt: att.requestedAt.toISOString(),
-    })),
   };
 }
+export type TeacherDashboardData = Awaited<
+  ReturnType<typeof getTeacherDashboard>
+>;
 
 // ==========================================
 // 4. DASHBOARD DO DIRETOR (FASE 4)
@@ -1307,16 +1267,22 @@ export async function requestStudentAttendance(lessonId: string, studentUserId: 
   };
 }
 
-export async function confirmTeacherAttendance(attendanceId: string, teacherUserId: string) {
+export async function confirmTeacherAttendance(
+  attendanceId: string,
+  teacherUserId: string,
+) {
   return await prisma.$transaction(async (tx) => {
     const teacher = await tx.teacher.findUnique({
       where: { userId: teacherUserId },
     });
 
     if (!teacher) {
-      throw new Error('Não autorizado. Apenas o professor responsável pode confirmar presença.');
+      throw new Error(
+        "Não autorizado. Apenas o professor responsável pode confirmar presença.",
+      );
     }
 
+    await tx.$queryRaw`SELECT id FROM "Attendance" WHERE id = ${attendanceId} FOR UPDATE`;
     const attendance = await tx.attendance.findUnique({
       where: { id: attendanceId },
       include: {
@@ -1327,11 +1293,16 @@ export async function confirmTeacherAttendance(attendanceId: string, teacherUser
     });
 
     if (!attendance) {
-      throw new Error('Registro de presença não encontrado.');
+      throw new Error("Registro de presença não encontrado.");
     }
 
     if (attendance.lesson.class.teacherId !== teacher.id) {
-      throw new Error('Você só pode confirmar presença de alunos das suas próprias turmas.');
+      throw Object.assign(
+        new Error(
+          "Você só pode confirmar presença de alunos das suas próprias turmas.",
+        ),
+        { statusCode: 403 },
+      );
     }
 
     // FASE 9: IDEMPOTÊNCIA
@@ -1339,21 +1310,25 @@ export async function confirmTeacherAttendance(attendanceId: string, teacherUser
     // - gerar XP novamente;
     // - criar nova PointTransaction;
     // - incrementar streak novamente.
-    if (attendance.status === 'PRESENT') {
+    if (attendance.status === "PRESENT") {
       return {
         id: attendance.id,
         lessonId: attendance.lessonId,
         studentId: attendance.studentId,
         status: attendance.status,
-        confirmedAt: attendance.confirmedAt?.toISOString() || new Date().toISOString(),
+        confirmedAt:
+          attendance.confirmedAt?.toISOString() || new Date().toISOString(),
       };
     }
+
+    if (attendance.status !== "PENDING")
+      throw new Error("Solicitação já resolvida.");
 
     // 1. Atualizar Attendance de PENDING para PRESENT
     const updatedAttendance = await tx.attendance.update({
       where: { id: attendanceId },
       data: {
-        status: 'PRESENT',
+        status: "PRESENT",
         confirmedAt: new Date(),
         confirmedById: teacherUserId,
       },
@@ -1361,7 +1336,7 @@ export async function confirmTeacherAttendance(attendanceId: string, teacherUser
 
     // 2. Obter GamificationRule de presença vigente
     const rule = await tx.gamificationRule.findUnique({
-      where: { code: 'XP_ATTENDANCE' },
+      where: { code: "XP_ATTENDANCE" },
     });
     const xpValue = rule && rule.isActive ? rule.xpValue : 20;
 
@@ -1378,7 +1353,7 @@ export async function confirmTeacherAttendance(attendanceId: string, teacherUser
         data: {
           studentId: attendance.studentId,
           amount: xpValue,
-          type: 'ATTENDANCE',
+          type: "ATTENDANCE",
           description: `Presença confirmada: Aula ${attendance.lesson.lessonNumber} - ${attendance.lesson.title}`,
           originReference: attendance.lessonId,
         },
@@ -1389,7 +1364,7 @@ export async function confirmTeacherAttendance(attendanceId: string, teacherUser
         data: {
           studentId: attendance.studentId,
           amount: xpValue,
-          type: 'EARNED',
+          type: "EARNED",
           description: `Coins por presença confirmada: Aula ${attendance.lesson.lessonNumber} - ${attendance.lesson.title}`,
           originReference: attendance.lessonId,
         },
@@ -1446,73 +1421,90 @@ export async function confirmTeacherAttendance(attendanceId: string, teacherUser
       lessonId: updatedAttendance.lessonId,
       studentId: updatedAttendance.studentId,
       status: updatedAttendance.status,
-      confirmedAt: updatedAttendance.confirmedAt?.toISOString() || new Date().toISOString(),
+      confirmedAt:
+        updatedAttendance.confirmedAt?.toISOString() ||
+        new Date().toISOString(),
     };
   });
 }
 
-export async function rejectTeacherAttendance(attendanceId: string, teacherUserId: string, reason?: string) {
-  const teacher = await prisma.teacher.findUnique({
-    where: { userId: teacherUserId },
+export async function rejectTeacherAttendance(
+  attendanceId: string,
+  teacherUserId: string,
+  reason?: string,
+) {
+  return prisma.$transaction(async (tx) => {
+    const teacher = await tx.teacher.findUnique({
+      where: { userId: teacherUserId },
+    });
+    await tx.$queryRaw`SELECT id FROM "Attendance" WHERE id = ${attendanceId} FOR UPDATE`;
+    const attendance = await tx.attendance.findUnique({
+      where: { id: attendanceId },
+      include: { lesson: { include: { class: true } } },
+    });
+    if (
+      !teacher ||
+      !attendance ||
+      attendance.lesson.class.teacherId !== teacher.id
+    )
+      throw Object.assign(new Error("Acesso negado à solicitação."), {
+        statusCode: 403,
+      });
+    if (attendance.status !== "PENDING")
+      throw new Error("Solicitação já resolvida.");
+    return tx.attendance.update({
+      where: { id: attendanceId },
+      data: {
+        status: "ABSENT",
+        confirmedAt: null,
+        confirmedById: teacherUserId,
+        rejectionReason:
+          reason?.trim() || "Solicitação rejeitada pelo professor.",
+      },
+    });
   });
-
-  if (!teacher) {
-    throw new Error('Não autorizado.');
-  }
-
-  const attendance = await prisma.attendance.findUnique({
-    where: { id: attendanceId },
-    include: {
-      lesson: { include: { class: true } },
-    },
-  });
-
-  if (!attendance) {
-    throw new Error('Registro de presença não encontrado.');
-  }
-
-  if (attendance.lesson.class.teacherId !== teacher.id) {
-    throw new Error('Você só pode recusar presença de alunos das suas próprias turmas.');
-  }
-
-  const updated = await prisma.attendance.update({
-    where: { id: attendanceId },
-    data: {
-      status: 'ABSENT',
-      confirmedAt: null,
-      confirmedById: teacherUserId,
-      rejectionReason: reason || 'Não compareceu à aula ou horário expirado.',
-    },
-  });
-
-  return {
-    id: updated.id,
-    lessonId: updated.lessonId,
-    studentId: updated.studentId,
-    status: updated.status,
-    rejectionReason: updated.rejectionReason,
-  };
 }
 
 // ==========================================
 // 8. ADMINISTRAÇÃO DE FREQUÊNCIA (PROFESSOR & DIRETOR)
 // ==========================================
 
-export async function getStudentAttendanceHistory(studentId: string) {
+export async function getStudentAttendanceHistory(
+  studentId: string,
+  actor?: { id: string; role: string },
+) {
+  const teacher =
+    actor?.role === "PROFESSOR"
+      ? await prisma.teacher.findUnique({ where: { userId: actor.id } })
+      : null;
+  if (
+    actor &&
+    actor.role !== "DIRETOR" &&
+    (!teacher ||
+      !(await prisma.enrollment.findFirst({
+        where: { studentId, class: { teacherId: teacher.id } },
+      })))
+  )
+    throw Object.assign(new Error("Acesso negado ao aluno."), {
+      statusCode: 403,
+    });
   const student = await prisma.student.findUnique({
     where: { id: studentId },
     include: {
       user: true,
       streak: true,
       enrollments: {
-        where: { status: 'ACTIVE' },
+        where: {
+          status: "ACTIVE",
+          ...(teacher ? { class: { teacherId: teacher.id } } : {}),
+        },
         include: {
           class: {
             include: {
               course: true,
               teacher: { include: { user: true } },
               lessons: {
-                orderBy: { lessonNumber: 'desc' },
+                orderBy: { lessonNumber: "desc" },
               },
             },
           },
@@ -1522,10 +1514,11 @@ export async function getStudentAttendanceHistory(studentId: string) {
   });
 
   if (!student) {
-    throw new Error('Aluno não encontrado.');
+    throw new Error("Aluno não encontrado.");
   }
 
-  const activeEnrollment = student.enrollments.length > 0 ? student.enrollments[0] : null;
+  const activeEnrollment =
+    student.enrollments.length > 0 ? student.enrollments[0] : null;
   const studentClass = activeEnrollment?.class || null;
   const course = studentClass?.course || null;
   const teacherUser = studentClass?.teacher?.user || null;
@@ -1541,27 +1534,28 @@ export async function getStudentAttendanceHistory(studentId: string) {
 
   const lessons = classLessons.map((l) => {
     const att = studentAttendances.find((a) => a.lessonId === l.id);
-    let normalizedStatus: 'PRESENT' | 'ABSENT' | 'EXCUSED' | 'PENDING' = 'PENDING';
+    let normalizedStatus: "PRESENT" | "ABSENT" | "EXCUSED" | "PENDING" =
+      "PENDING";
 
     if (att) {
-      if (att.status === 'PRESENT') {
-        normalizedStatus = 'PRESENT';
+      if (att.status === "PRESENT") {
+        normalizedStatus = "PRESENT";
         presentCount++;
-      } else if (att.status === 'EXCUSED') {
-        normalizedStatus = 'EXCUSED';
+      } else if (att.status === "EXCUSED") {
+        normalizedStatus = "EXCUSED";
         justifiedCount++;
-      } else if (att.status === 'ABSENT') {
-        normalizedStatus = 'ABSENT';
+      } else if (att.status === "ABSENT") {
+        normalizedStatus = "ABSENT";
         absentCount++;
       } else {
-        normalizedStatus = 'PENDING';
+        normalizedStatus = "PENDING";
       }
     } else {
-      if (l.status === 'COMPLETED') {
-        normalizedStatus = 'ABSENT';
+      if (l.status === "COMPLETED") {
+        normalizedStatus = "ABSENT";
         absentCount++;
       } else {
-        normalizedStatus = 'PENDING';
+        normalizedStatus = "PENDING";
       }
     }
 
@@ -1575,9 +1569,15 @@ export async function getStudentAttendanceHistory(studentId: string) {
       lessonStatus: l.status,
       status: normalizedStatus,
       rawStatus: att ? att.status : null,
-      justificationReason: att?.justificationReason || att?.rejectionReason || null,
+      justificationReason:
+        att?.justificationReason || att?.rejectionReason || null,
       confirmedAt: att?.confirmedAt ? att.confirmedAt.toISOString() : null,
-      confirmedByName: normalizedStatus === 'PRESENT' ? (teacherUser ? teacherUser.name : 'Professor') : null,
+      confirmedByName:
+        normalizedStatus === "PRESENT"
+          ? teacherUser
+            ? teacherUser.name
+            : "Professor"
+          : null,
       plannedContent: l.plannedContent,
       actualContent: l.actualContent || null,
       materials: l.materials || null,
@@ -1585,7 +1585,8 @@ export async function getStudentAttendanceHistory(studentId: string) {
   });
 
   const totalFinished = presentCount + absentCount + justifiedCount;
-  const attendanceRate = totalFinished > 0 ? Math.round((presentCount / totalFinished) * 100) : 100;
+  const attendanceRate =
+    totalFinished > 0 ? Math.round((presentCount / totalFinished) * 100) : 100;
 
   return {
     student: {
@@ -1599,20 +1600,20 @@ export async function getStudentAttendanceHistory(studentId: string) {
       attendanceRate,
     },
     classInfo: {
-      id: studentClass?.id || '',
-      name: studentClass?.name || 'Turma',
-      code: studentClass?.code || '',
-      courseName: course?.name || 'Curso',
-      teacherName: teacherUser ? teacherUser.name : 'Professor Fuctura',
-      scheduleTime: studentClass?.scheduleTime || '',
-      daysOfWeek: studentClass?.daysOfWeek || '',
+      id: studentClass?.id || "",
+      name: studentClass?.name || "Turma",
+      code: studentClass?.code || "",
+      courseName: course?.name || "Curso",
+      teacherName: teacherUser ? teacherUser.name : "Professor Fuctura",
+      scheduleTime: studentClass?.scheduleTime || "",
+      daysOfWeek: studentClass?.daysOfWeek || "",
     },
     metrics: {
       totalLessons: classLessons.length,
       presentCount,
       absentCount,
       justifiedCount,
-      pendingCount: lessons.filter((l) => l.status === 'PENDING').length,
+      pendingCount: lessons.filter((l) => l.status === "PENDING").length,
       attendanceRate,
     },
     lessons,
@@ -1622,13 +1623,41 @@ export async function getStudentAttendanceHistory(studentId: string) {
 export async function updateStudentAttendanceRecord(params: {
   studentId: string;
   lessonId: string;
-  status: 'PRESENT' | 'ABSENT' | 'EXCUSED';
+  status: "PRESENT" | "ABSENT" | "EXCUSED";
   justificationReason?: string;
   actorUserId: string;
 }) {
-  const { studentId, lessonId, status, justificationReason, actorUserId } = params;
+  const { studentId, lessonId, status, justificationReason, actorUserId } =
+    params;
 
   return await prisma.$transaction(async (tx) => {
+    const actor = await tx.user.findUnique({
+      where: { id: actorUserId },
+      include: { teacher: true },
+    });
+    const lesson = await tx.lesson.findUnique({
+      where: { id: lessonId },
+      include: { class: true },
+    });
+    if (
+      !actor ||
+      !lesson ||
+      (actor.role !== "DIRETOR" &&
+        (actor.role !== "PROFESSOR" ||
+          !actor.teacher ||
+          lesson.class.teacherId !== actor.teacher.id))
+    )
+      throw Object.assign(new Error("Acesso negado à turma."), {
+        statusCode: 403,
+      });
+    if (
+      !(await tx.enrollment.findUnique({
+        where: { studentId_classId: { studentId, classId: lesson.classId } },
+      }))
+    )
+      throw Object.assign(new Error("Aluno não matriculado nesta turma."), {
+        statusCode: 403,
+      });
     const existing = await tx.attendance.findUnique({
       where: {
         lessonId_studentId: {
@@ -1646,10 +1675,13 @@ export async function updateStudentAttendanceRecord(params: {
           studentId,
           status,
           requestedAt: new Date(),
-          confirmedAt: status === 'PRESENT' ? new Date() : null,
+          confirmedAt: status === "PRESENT" ? new Date() : null,
           confirmedById: actorUserId,
           justificationReason: justificationReason || null,
-          rejectionReason: status === 'ABSENT' ? (justificationReason || 'Ausência confirmada') : null,
+          rejectionReason:
+            status === "ABSENT"
+              ? justificationReason || "Ausência confirmada"
+              : null,
         },
       });
     } else {
@@ -1657,16 +1689,19 @@ export async function updateStudentAttendanceRecord(params: {
         where: { id: existing.id },
         data: {
           status,
-          confirmedAt: status === 'PRESENT' ? new Date() : null,
+          confirmedAt: status === "PRESENT" ? new Date() : null,
           confirmedById: actorUserId,
           justificationReason: justificationReason || null,
-          rejectionReason: status === 'ABSENT' ? (justificationReason || 'Ausência confirmada') : null,
+          rejectionReason:
+            status === "ABSENT"
+              ? justificationReason || "Ausência confirmada"
+              : null,
         },
       });
     }
 
     // Se alterou para PRESENT e o aluno ainda não tinha recebido XP por essa aula:
-    if (status === 'PRESENT') {
+    if (status === "PRESENT") {
       const alreadyHasXp = await tx.pointTransaction.findFirst({
         where: {
           studentId,
@@ -1675,7 +1710,9 @@ export async function updateStudentAttendanceRecord(params: {
       });
 
       if (!alreadyHasXp) {
-        const rule = await tx.gamificationRule.findUnique({ where: { code: 'XP_ATTENDANCE' } });
+        const rule = await tx.gamificationRule.findUnique({
+          where: { code: "XP_ATTENDANCE" },
+        });
         const xpValue = rule && rule.isActive ? rule.xpValue : 20;
 
         if (xpValue > 0) {
@@ -1683,7 +1720,7 @@ export async function updateStudentAttendanceRecord(params: {
             data: {
               studentId,
               amount: xpValue,
-              type: 'ATTENDANCE',
+              type: "ATTENDANCE",
               description: `XP por presença confirmada em aula`,
               originReference: lessonId,
             },
@@ -1693,7 +1730,7 @@ export async function updateStudentAttendanceRecord(params: {
             data: {
               studentId,
               amount: xpValue,
-              type: 'EARNED',
+              type: "EARNED",
               description: `Coins por presença confirmada em aula`,
               originReference: lessonId,
             },
@@ -1854,7 +1891,13 @@ export function extractTaughtTopics(lesson: {
 
 export async function getLessonWithDiary(
   lessonId: string,
-  sessionUser: { id: string; role: string; studentId?: string; teacherId?: string; directorId?: string }
+  sessionUser: {
+    id: string;
+    role: string;
+    studentId?: string;
+    teacherId?: string;
+    directorId?: string;
+  },
 ): Promise<LessonDiaryData> {
   const lesson = await prisma.lesson.findUnique({
     where: { id: lessonId },
@@ -1867,31 +1910,47 @@ export async function getLessonWithDiary(
       },
       teacher: { include: { user: true } },
       contents: {
-        orderBy: { orderIndex: 'asc' },
+        orderBy: { orderIndex: "asc" },
       },
     },
   });
 
   if (!lesson) {
-    const err = new Error('Aula não encontrada.');
+    const err = new Error("Aula não encontrada.");
     (err as any).statusCode = 404;
     throw err;
   }
 
   // Permissões de Leitura
-  if (sessionUser.role === 'ALUNO') {
+  if (sessionUser.role === "ALUNO") {
     let studentId = sessionUser.studentId;
     if (!studentId) {
-      const st = await prisma.student.findUnique({ where: { userId: sessionUser.id } });
+      const st = await prisma.student.findUnique({
+        where: { userId: sessionUser.id },
+      });
       studentId = st?.id;
     }
     const isEnrolled = lesson.class.enrollments.some(
-      (e) => e.studentId === studentId && e.status === 'ACTIVE'
+      (e) => e.studentId === studentId && e.status === "ACTIVE",
     );
     if (!isEnrolled) {
-      const err = new Error('Acesso negado: aluno não possui matrícula ativa nesta turma.');
+      const err = new Error(
+        "Acesso negado: aluno não possui matrícula ativa nesta turma.",
+      );
       (err as any).statusCode = 403;
       throw err;
+    }
+  }
+
+  if (sessionUser.role === "PROFESSOR") {
+    const teacher = await prisma.teacher.findUnique({
+      where: { userId: sessionUser.id },
+    });
+    if (!teacher || lesson.class.teacherId !== teacher.id) {
+      throw Object.assign(
+        new Error("Acesso negado: turma de outro professor."),
+        { statusCode: 403 },
+      );
     }
   }
 
@@ -1899,7 +1958,10 @@ export async function getLessonWithDiary(
   const taughtTopics = extractTaughtTopics(lesson);
   const materials = parseMaterialsList(lesson.materials);
 
-  const teacherName = lesson.teacher?.user?.name || lesson.class.teacher?.user?.name || 'Professor Fuctura';
+  const teacherName =
+    lesson.teacher?.user?.name ||
+    lesson.class.teacher?.user?.name ||
+    "Professor Fuctura";
 
   return {
     id: lesson.id,
@@ -1926,7 +1988,13 @@ export async function updateLessonDiary(
     taughtTopics?: string[];
     materials?: SupportMaterialItem[];
   },
-  sessionUser: { id: string; role: string; studentId?: string; teacherId?: string; directorId?: string }
+  sessionUser: {
+    id: string;
+    role: string;
+    studentId?: string;
+    teacherId?: string;
+    directorId?: string;
+  },
 ): Promise<LessonDiaryData> {
   const lesson = await prisma.lesson.findUnique({
     where: { id: lessonId },
@@ -1937,29 +2005,31 @@ export async function updateLessonDiary(
   });
 
   if (!lesson) {
-    const err = new Error('Aula não encontrada.');
+    const err = new Error("Aula não encontrada.");
     (err as any).statusCode = 404;
     throw err;
   }
 
   // Permissões de Escrita
-  if (sessionUser.role === 'ALUNO') {
-    const err = new Error('Acesso negado: alunos não possuem permissão para editar o diário de aula.');
+  if (sessionUser.role === "ALUNO") {
+    const err = new Error(
+      "Acesso negado: alunos não possuem permissão para editar o diário de aula.",
+    );
     (err as any).statusCode = 403;
     throw err;
   }
 
-  if (sessionUser.role === 'PROFESSOR') {
-    let teacherId = sessionUser.teacherId;
-    if (!teacherId) {
-      const t = await prisma.teacher.findUnique({ where: { userId: sessionUser.id } });
-      teacherId = t?.id;
-    }
+  if (sessionUser.role === "PROFESSOR") {
+    const t = await prisma.teacher.findUnique({
+      where: { userId: sessionUser.id },
+    });
+    const teacherId = t?.id;
 
     const isClassTeacher = lesson.class.teacherId === teacherId;
-    const isLessonTeacher = lesson.teacherId === teacherId;
-    if (!isClassTeacher && !isLessonTeacher) {
-      const err = new Error('Acesso negado: professor não é o responsável por esta turma/aula.');
+    if (!teacherId || !isClassTeacher) {
+      const err = new Error(
+        "Acesso negado: professor não é o responsável por esta turma/aula.",
+      );
       (err as any).statusCode = 403;
       throw err;
     }
@@ -1969,18 +2039,23 @@ export async function updateLessonDiary(
   if (data.materials !== undefined) {
     for (const mat of data.materials) {
       if (!mat.title || !mat.title.trim()) {
-        const err = new Error('O título do material de apoio é obrigatório.');
+        const err = new Error("O título do material de apoio é obrigatório.");
         (err as any).statusCode = 400;
         throw err;
       }
       if (!mat.url || !mat.url.trim()) {
-        const err = new Error('A URL do material de apoio é obrigatória.');
+        const err = new Error("A URL do material de apoio é obrigatória.");
         (err as any).statusCode = 400;
         throw err;
       }
       const trimmedUrl = mat.url.trim();
-      if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
-        const err = new Error(`A URL "${trimmedUrl}" deve iniciar com http:// ou https://`);
+      if (
+        !trimmedUrl.startsWith("http://") &&
+        !trimmedUrl.startsWith("https://")
+      ) {
+        const err = new Error(
+          `A URL "${trimmedUrl}" deve iniciar com http:// ou https://`,
+        );
         (err as any).statusCode = 400;
         throw err;
       }
@@ -2004,7 +2079,7 @@ export async function updateLessonDiary(
       await tx.lessonContent.deleteMany({
         where: {
           lessonId,
-          contentType: 'PLANNED',
+          contentType: "PLANNED",
         },
       });
 
@@ -2013,7 +2088,7 @@ export async function updateLessonDiary(
           data: {
             lessonId,
             title: sanitizedPlanned[i],
-            contentType: 'PLANNED',
+            contentType: "PLANNED",
             orderIndex: i + 1,
           },
         });
@@ -2024,8 +2099,8 @@ export async function updateLessonDiary(
         data: {
           plannedContent:
             sanitizedPlanned.length > 0
-              ? sanitizedPlanned.map((t, idx) => `${idx + 1}. ${t}`).join('\n')
-              : 'Nenhum tópico planejado registrado.',
+              ? sanitizedPlanned.map((t, idx) => `${idx + 1}. ${t}`).join("\n")
+              : "Nenhum tópico planejado registrado.",
         },
       });
     }
@@ -2039,7 +2114,7 @@ export async function updateLessonDiary(
       await tx.lessonContent.deleteMany({
         where: {
           lessonId,
-          contentType: 'TAUGHT',
+          contentType: "TAUGHT",
         },
       });
 
@@ -2048,7 +2123,7 @@ export async function updateLessonDiary(
           data: {
             lessonId,
             title: sanitizedTaught[i],
-            contentType: 'TAUGHT',
+            contentType: "TAUGHT",
             orderIndex: i + 1,
           },
         });
@@ -2059,7 +2134,7 @@ export async function updateLessonDiary(
         data: {
           actualContent:
             sanitizedTaught.length > 0
-              ? sanitizedTaught.map((t, idx) => `${idx + 1}. ${t}`).join('\n')
+              ? sanitizedTaught.map((t, idx) => `${idx + 1}. ${t}`).join("\n")
               : null,
         },
       });
@@ -2067,24 +2142,32 @@ export async function updateLessonDiary(
 
     // 3. Atualizar Materiais de Apoio (se fornecidos)
     if (data.materials !== undefined) {
-      const sanitizedMaterials: SupportMaterialItem[] = data.materials.map((m) => ({
-        id: m.id || `mat_${randomUUID()}`,
-        title: m.title.trim(),
-        url: m.url.trim(),
-        description: m.description && m.description.trim() ? m.description.trim() : undefined,
-      }));
+      const sanitizedMaterials: SupportMaterialItem[] = data.materials.map(
+        (m) => ({
+          id: m.id || `mat_${randomUUID()}`,
+          title: m.title.trim(),
+          url: m.url.trim(),
+          description:
+            m.description && m.description.trim()
+              ? m.description.trim()
+              : undefined,
+        }),
+      );
 
       await tx.lesson.update({
         where: { id: lessonId },
         data: {
-          materials: sanitizedMaterials.length > 0 ? JSON.stringify(sanitizedMaterials) : null,
+          materials:
+            sanitizedMaterials.length > 0
+              ? JSON.stringify(sanitizedMaterials)
+              : null,
         },
       });
 
       await tx.lessonContent.deleteMany({
         where: {
           lessonId,
-          contentType: 'COMPLEMENTARY',
+          contentType: "COMPLEMENTARY",
         },
       });
 
@@ -2094,8 +2177,11 @@ export async function updateLessonDiary(
           data: {
             lessonId,
             title: mat.title,
-            description: JSON.stringify({ url: mat.url, description: mat.description }),
-            contentType: 'COMPLEMENTARY',
+            description: JSON.stringify({
+              url: mat.url,
+              description: mat.description,
+            }),
+            contentType: "COMPLEMENTARY",
             orderIndex: i + 1,
           },
         });
@@ -2108,7 +2194,13 @@ export async function updateLessonDiary(
 
 export async function getClassLessonsWithDiary(
   classId: string,
-  sessionUser: { id: string; role: string; studentId?: string; teacherId?: string; directorId?: string }
+  sessionUser: {
+    id: string;
+    role: string;
+    studentId?: string;
+    teacherId?: string;
+    directorId?: string;
+  },
 ): Promise<LessonDiaryData[]> {
   const cls = await prisma.class.findUnique({
     where: { id: classId },
@@ -2117,34 +2209,50 @@ export async function getClassLessonsWithDiary(
       teacher: { include: { user: true } },
       lessons: {
         include: {
-          contents: { orderBy: { orderIndex: 'asc' } },
+          contents: { orderBy: { orderIndex: "asc" } },
           teacher: { include: { user: true } },
         },
-        orderBy: { lessonNumber: 'asc' },
+        orderBy: { lessonNumber: "asc" },
       },
     },
   });
 
   if (!cls) {
-    const err = new Error('Turma não encontrada.');
+    const err = new Error("Turma não encontrada.");
     (err as any).statusCode = 404;
     throw err;
   }
 
   // Permissões
-  if (sessionUser.role === 'ALUNO') {
+  if (sessionUser.role === "ALUNO") {
     let studentId = sessionUser.studentId;
     if (!studentId) {
-      const st = await prisma.student.findUnique({ where: { userId: sessionUser.id } });
+      const st = await prisma.student.findUnique({
+        where: { userId: sessionUser.id },
+      });
       studentId = st?.id;
     }
     const isEnrolled = cls.enrollments.some(
-      (e) => e.studentId === studentId && e.status === 'ACTIVE'
+      (e) => e.studentId === studentId && e.status === "ACTIVE",
     );
     if (!isEnrolled) {
-      const err = new Error('Acesso negado: aluno não possui matrícula ativa nesta turma.');
+      const err = new Error(
+        "Acesso negado: aluno não possui matrícula ativa nesta turma.",
+      );
       (err as any).statusCode = 403;
       throw err;
+    }
+  }
+
+  if (sessionUser.role === "PROFESSOR") {
+    const teacher = await prisma.teacher.findUnique({
+      where: { userId: sessionUser.id },
+    });
+    if (!teacher || cls.teacherId !== teacher.id) {
+      throw Object.assign(
+        new Error("Acesso negado: turma de outro professor."),
+        { statusCode: 403 },
+      );
     }
   }
 
@@ -2154,7 +2262,8 @@ export async function getClassLessonsWithDiary(
     className: cls.name,
     classCode: cls.code,
     teacherId: l.teacherId || cls.teacherId,
-    teacherName: l.teacher?.user?.name || cls.teacher?.user?.name || 'Professor Fuctura',
+    teacherName:
+      l.teacher?.user?.name || cls.teacher?.user?.name || "Professor Fuctura",
     lessonNumber: l.lessonNumber,
     title: l.title,
     date: l.date.toISOString(),

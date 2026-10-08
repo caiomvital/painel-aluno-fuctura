@@ -48,6 +48,16 @@ Em ambientes com Chromium instalado e download restrito, defina
 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium`. Na CI, usa-se o navegador
 instalado pelo Playwright. Não desative verificação TLS para baixar navegadores.
 
+## Marco 8 — professor
+
+O mesmo `npm run test:all` executa `scripts/test-marco8.ts` depois do Marco 7.
+A integração verifica escopo por professor, IDs forjados, diário persistido,
+confirmações simultâneas/duplicadas, rejeição sem recompensa e reconciliação dos
+ledgers. `tests/e2e/teacher.spec.ts` cobre as cinco áreas, próxima aula, cronograma,
+tópicos e links, filtros, confirmação/rejeição, indicadores e frequência em desktop
+e mobile, com login e PostgreSQL reais. Fixtures ficam exclusivamente no banco
+isolado; nenhum comando desta suíte usa o Supabase compartilhado.
+
 ## Cobertura e artefatos
 
 E2E valida os papéis professor, aluno e diretor em 1440×900 e 390×844, recarregamento,
