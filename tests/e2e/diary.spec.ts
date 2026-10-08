@@ -68,7 +68,7 @@ async function login(page: Page, role: string, project: string) {
   const dashboard = page.getByRole("button", {
     name:
       role === "director"
-        ? /Turmas & Aulas/
+        ? /^Turmas$/
         : ["teacher", "otherTeacher"].includes(role)
           ? "Minhas Turmas"
           : "Aulas & Cronograma",
@@ -281,7 +281,7 @@ test.describe("Marco 7 com autenticação e PostgreSQL reais", () => {
   }, info) => {
     await login(page, "director", info.project.name);
     async function open() {
-      await page.getByRole("button", { name: /Turmas & Aulas/ }).click();
+      await page.getByRole("button", { name: /^Turmas$/ }).click();
       await page
         .getByTestId(`class-${ids(info.project.name).class}`)
         .getByRole("button", { name: /Diário de Aulas/ })

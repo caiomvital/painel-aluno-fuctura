@@ -117,6 +117,40 @@ export default async function setup() {
           },
         ],
       });
+      for (const [id, lessonNumber, title] of [
+        [f.m9Lesson, 1, "Gestão da direção Marco 9"],
+        [f.m9RejectLesson, 2, "Rejeição da direção Marco 9"],
+      ] as const) {
+        await db.lesson.create({
+          data: {
+            id,
+            classId: f.otherClass,
+            teacherId: `${f.otherTeacher}_profile`,
+            lessonNumber,
+            title,
+            plannedContent: "",
+            date: new Date("2026-01-03T12:00:00Z"),
+            scheduleTime: "08:30 - 12:30",
+            status: "SCHEDULED",
+          },
+        });
+      }
+      await db.attendance.createMany({
+        data: [
+          {
+            id: f.m9Attendance,
+            lessonId: f.m9Lesson,
+            studentId: `${f.outsider}_profile`,
+            status: "PENDING",
+          },
+          {
+            id: f.m9Rejection,
+            lessonId: f.m9RejectLesson,
+            studentId: `${f.outsider}_profile`,
+            status: "PENDING",
+          },
+        ],
+      });
       // A real, empty auction item avoids unrelated automatic demo seeding on dashboards.
       await db.auctionSeason.create({
         data: {

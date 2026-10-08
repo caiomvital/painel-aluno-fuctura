@@ -361,7 +361,7 @@ export async function reconcileExpiredAuctionItems(): Promise<number> {
 // 4. CONSULTA PÚBLICA DO LEILÃO (FASE 17 & 18)
 // ==========================================
 
-export async function getAuctionOverview(studentId?: string) {
+export async function getAuctionOverview(studentId?: string, seedDefaults = true) {
   // 1. Fechar lotes expirados de forma lazy
   await reconcileExpiredAuctionItems();
 
@@ -378,7 +378,7 @@ export async function getAuctionOverview(studentId?: string) {
   }
 
   const itemsCount = await prisma.auctionItem.count();
-  if (!season || itemsCount === 0) {
+  if (seedDefaults && (!season || itemsCount === 0)) {
     await seedInitialAuctionData();
     season = await prisma.auctionSeason.findFirst({
       where: { status: AuctionStatus.ACTIVE },
@@ -986,6 +986,8 @@ export async function deleteAuctionItemByDirector(id: string) {
   if (!item) return false;
 
   await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "AuctionItem" WHERE id = ${id} FOR UPDATE`;
+    if (await tx.auctionBid.count({ where: { itemId: id } }) || await tx.coinReservation.count({ where: { itemId: id } })) throw new Error("Lote possui histórico. Utilize o encerramento para preservá-lo.");
     // Liberar reservas ativas
     await tx.coinReservation.deleteMany({ where: { itemId: id } });
     await tx.auctionBid.deleteMany({ where: { itemId: id } });
@@ -1040,11 +1042,15 @@ export async function manualAdjustStudentCoins(params: {
   const { studentId, amount, description, directorUserId } = params;
 
   return await prisma.$transaction(async (tx) => {
+    if (!Number.isInteger(amount) || amount === 0) throw new Error("Informe um ajuste inteiro diferente de zero.");
+    await tx.$queryRaw`SELECT id FROM "Student" WHERE id = ${studentId} FOR UPDATE`;
     const student = await tx.student.findUnique({ where: { id: studentId } });
     if (!student) throw new Error('Aluno não encontrado.');
 
-    if (amount < 0 && student.coinBalance + amount < 0) {
-      throw new Error(`Saldo insuficiente de Coins para débito manual. Saldo atual: ${student.coinBalance}.`);
+    const reservations = await tx.coinReservation.aggregate({ where: { studentId, status: "ACTIVE" }, _sum: { amount: true } });
+    const reserved = reservations._sum.amount ?? 0;
+    if (amount < 0 && student.coinBalance + amount < reserved) {
+      throw new Error(`Saldo disponível insuficiente de Coins para débito manual. Disponível: ${student.coinBalance - reserved}; reservado: ${reserved}.`);
     }
 
     const originRef = `MANUAL_COINS_${randomUUID()}`;

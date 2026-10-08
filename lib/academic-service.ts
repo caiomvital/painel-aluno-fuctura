@@ -570,146 +570,264 @@ export type TeacherDashboardData = Awaited<
 // ==========================================
 
 export async function getDirectorDashboard(userId: string) {
-  const directorUser = await prisma.user.findUnique({
+  const director = await prisma.user.findUnique({
     where: { id: userId },
-    include: { director: true },
+    select: { name: true, email: true, role: true },
   });
-
-  const [totalStudents, totalTeachers, totalCourses, totalClasses] = await Promise.all([
-    prisma.student.count(),
-    prisma.teacher.count(),
-    prisma.course.count(),
-    prisma.class.count(),
+  if (!director || director.role !== "DIRETOR")
+    throw Object.assign(new Error("Acesso restrito à diretoria."), {
+      statusCode: 403,
+    });
+  const [classes, courses, teachers, students, rules] = await Promise.all([
+    prisma.class.findMany({
+      include: {
+        course: true,
+        teacher: { include: { user: { select: { name: true } } } },
+        enrollments: {
+          include: {
+            student: { include: { user: { select: { name: true } } } },
+          },
+        },
+        lessons: {
+          include: {
+            contents: true,
+            teacher: { include: { user: { select: { name: true } } } },
+            attendances: {
+              include: {
+                student: { include: { user: { select: { name: true } } } },
+              },
+            },
+          },
+          orderBy: [{ date: "asc" }, { lessonNumber: "asc" }],
+        },
+      },
+      orderBy: { code: "asc" },
+    }),
+    prisma.course.findMany({
+      include: { modules: { orderBy: { orderIndex: "asc" } } },
+      orderBy: { name: "asc" },
+    }),
+    prisma.teacher.findMany({
+      include: { user: { select: { name: true, email: true } }, classes: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.student.findMany({
+      include: {
+        user: { select: { name: true, email: true } },
+        enrollments: { include: { class: true } },
+        streak: true,
+        attendances: true,
+        coinReservations: { where: { status: "ACTIVE" } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.gamificationRule.findMany({ orderBy: { code: "asc" } }),
   ]);
-
-  const classes = await prisma.class.findMany({
-    include: {
-      course: true,
-      teacher: { include: { user: true } },
-      enrollments: { where: { status: 'ACTIVE' } },
-      lessons: {
-        include: { contents: true },
-        orderBy: { lessonNumber: 'asc' },
-      },
-    },
-    orderBy: { code: 'asc' },
-  });
-
-  const courses = await prisma.course.findMany({
-    include: {
-      modules: { orderBy: { orderIndex: 'asc' } },
-    },
-    orderBy: { name: 'asc' },
-  });
-
-  const teachers = await prisma.teacher.findMany({
-    include: {
-      user: true,
-      classes: true,
-    },
-    orderBy: { createdAt: 'asc' },
-  });
-
-  const students = await prisma.student.findMany({
-    include: {
-      user: true,
-      enrollments: {
-        where: { status: 'ACTIVE' },
-        include: { class: true },
-      },
-      streak: true,
-      attendances: true,
-    },
-    orderBy: { createdAt: 'asc' },
-  });
-
-  const rules = await prisma.gamificationRule.findMany({
-    orderBy: { code: 'asc' },
-  });
-
-  return {
-    director: {
-      name: directorUser ? directorUser.name : 'Diretor Fuctura',
-      email: directorUser ? directorUser.email : 'diretoria@fuctura.com.br',
-    },
-    metrics: {
-      totalStudents,
-      totalTeachers,
-      totalCourses,
-      totalClasses,
-    },
-    classes: classes.map((cls) => ({
+  const now = new Date();
+  const classData = classes.map((cls) => {
+    const lessons = cls.lessons.map((l) => ({
+      id: l.id,
+      classId: cls.id,
+      className: cls.name,
+      courseName: cls.course.name,
+      teacherId: l.teacherId ?? cls.teacherId,
+      teacherName:
+        l.teacher?.user.name ?? cls.teacher?.user.name ?? "Sem professor",
+      lessonNumber: l.lessonNumber,
+      title: l.title,
+      date: l.date.toISOString(),
+      scheduleTime: l.scheduleTime,
+      status: l.status,
+      plannedTopics: extractPlannedTopics(l),
+      taughtTopics: extractTaughtTopics(l),
+      materials: parseMaterialsList(l.materials),
+      ...lessonTiming(l.date, l.scheduleTime, now),
+    }));
+    const past = lessons.filter((l) => l.status !== "CANCELLED" && l.isPast);
+    const future = lessons.filter(
+      (l) =>
+        ["SCHEDULED", "IN_PROGRESS"].includes(l.status) && l.startsInFuture,
+    );
+    const pending = cls.lessons.flatMap((l) =>
+      l.attendances.filter((a) => a.status === "PENDING"),
+    );
+    return {
       id: cls.id,
       name: cls.name,
       code: cls.code,
       courseId: cls.courseId,
-      courseName: cls.course ? cls.course.name : 'Curso',
+      courseName: cls.course.name,
       teacherId: cls.teacherId,
-      teacherName: cls.teacher?.user ? cls.teacher.user.name : 'Não atribuído',
+      teacherName: cls.teacher?.user.name ?? "Não atribuído",
       daysOfWeek: cls.daysOfWeek,
       scheduleTime: cls.scheduleTime,
       durationMinutes: cls.durationMinutes,
       lessonsPerWeek: cls.lessonsPerWeek,
       status: cls.status,
-      enrolledCount: cls.enrollments.length,
+      enrolledCount: cls.enrollments.filter((e) => e.status === "ACTIVE")
+        .length,
       startDate: cls.startDate.toISOString(),
-      endDate: cls.endDate ? cls.endDate.toISOString() : null,
-      lessons: cls.lessons.map((l) => ({
-        id: l.id,
-        lessonNumber: l.lessonNumber,
-        title: l.title,
-        date: l.date.toISOString(),
-        scheduleTime: l.scheduleTime,
-        status: l.status,
-        plannedTopics: extractPlannedTopics(l),
-        taughtTopics: extractTaughtTopics(l),
-        materials: parseMaterialsList(l.materials),
+      endDate: cls.endDate?.toISOString() ?? null,
+      enrollments: cls.enrollments.map((e) => ({
+        id: e.id,
+        studentId: e.studentId,
+        name: e.student.user.name,
+        status: e.status,
       })),
-    })),
+      lessons,
+      nextLesson: future[0] ?? null,
+      pedagogy: {
+        scheduled: lessons.filter((l) => l.status !== "CANCELLED").length,
+        past: past.length,
+        completed: lessons.filter((l) => l.status === "COMPLETED").length,
+        diaries: lessons.filter((l) => l.taughtTopics.length > 0).length,
+        future: future.length,
+        pendingAttendances: pending.length,
+        pastDiaryPercent: past.length
+          ? Math.round(
+              (past.filter((l) => l.taughtTopics.length > 0).length /
+                past.length) *
+                100,
+            )
+          : null,
+      },
+    };
+  });
+  const lessons = classData
+    .flatMap((c) => c.lessons)
+    .sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) ||
+        a.scheduleTime.localeCompare(b.scheduleTime),
+    );
+  const attendances = classes.flatMap((c) =>
+    c.lessons.flatMap((l) =>
+      l.attendances.map((a) => ({
+        id: a.id,
+        studentId: a.studentId,
+        studentName: a.student.user.name,
+        classId: c.id,
+        className: c.name,
+        lessonId: l.id,
+        lessonTitle: l.title,
+        date: l.date.toISOString(),
+        teacherId: l.teacherId ?? c.teacherId,
+        status: a.status,
+        justification: a.justificationReason,
+        rejectionReason: a.rejectionReason,
+      })),
+    ),
+  );
+  const pendingDiaries = lessons.filter(
+    (l) => l.status !== "CANCELLED" && l.isPast && l.taughtTopics.length === 0,
+  );
+  return {
+    director: { name: director.name, email: director.email },
+    metrics: {
+      totalStudents: students.length,
+      totalTeachers: teachers.length,
+      totalCourses: courses.length,
+      totalClasses: classes.length,
+      activeClasses: classes.filter((c) => c.status === "ACTIVE").length,
+      activeStudents: new Set(
+        classes.flatMap((c) =>
+          c.enrollments
+            .filter((e) => e.status === "ACTIVE")
+            .map((e) => e.studentId),
+        ),
+      ).size,
+      assignedTeachers: new Set(
+        classes.filter((c) => c.teacherId).map((c) => c.teacherId),
+      ).size,
+      upcomingLessons: lessons.filter(
+        (l) =>
+          ["SCHEDULED", "IN_PROGRESS"].includes(l.status) && l.startsInFuture,
+      ).length,
+      pendingAttendances: attendances.filter((a) => a.status === "PENDING")
+        .length,
+      pendingDiaries: pendingDiaries.length,
+    },
+    classes: classData,
+    lessons,
+    attendances,
+    pendingDiaries,
+    upcomingLessons: lessons.filter(
+      (l) =>
+        ["SCHEDULED", "IN_PROGRESS"].includes(l.status) && l.startsInFuture,
+    ),
     courses: courses.map((c) => ({
       id: c.id,
       name: c.name,
       code: c.code,
-      description: c.description,
-      workloadHours: c.workloadHours,
-      category: c.category,
-      partnerCertification: c.partnerCertification,
-      modality: c.modality,
-      modules: c.modules.map((m) => ({
-        id: m.id,
-        orderIndex: m.orderIndex,
-        title: m.title,
-        description: m.description,
-        workloadHours: m.workloadHours,
-        topics: m.topics,
-      })),
+      modules: c.modules.map((m) => ({ id: m.id, title: m.title })),
     })),
     teachers: teachers.map((t) => ({
       id: t.id,
       userId: t.userId,
-      name: t.user ? t.user.name : 'Professor',
-      email: t.user ? t.user.email : '',
+      name: t.user.name,
+      email: t.user.email,
       specialty: t.specialty,
       assignedClassesCount: t.classes.length,
       assignedClasses: t.classes.map((c) => c.name),
+      classIds: t.classes.map((c) => c.id),
     })),
     students: students.map((s) => {
-      const activeEnrollment = s.enrollments.length > 0 ? s.enrollments[0] : null;
-      const confirmedAtts = s.attendances.filter((a) => a.status === 'PRESENT').length;
-      const rate = s.attendances.length > 0 ? Math.round((confirmedAtts / s.attendances.length) * 100) : 100;
-
+      const active = s.enrollments.find((e) => e.status === "ACTIVE");
+      const resolved = s.attendances.filter((a) =>
+        ["PRESENT", "ABSENT", "EXCUSED"].includes(a.status),
+      );
+      const present = resolved.filter((a) => a.status === "PRESENT").length;
+      const reservedCoins = s.coinReservations.reduce(
+        (sum, r) => sum + r.amount,
+        0,
+      );
       return {
         id: s.id,
         userId: s.userId,
-        name: s.user ? s.user.name : 'Aluno',
-        email: s.user ? s.user.email : '',
+        name: s.user.name,
+        email: s.user.email,
         registrationNumber: s.registrationNumber,
         currentXp: s.currentXp,
+        coinBalance: s.coinBalance,
+        reservedCoins,
+        availableCoins: Math.max(0, s.coinBalance - reservedCoins),
         level: s.level,
-        streak: s.streak ? s.streak.currentStreak : 0,
-        classId: activeEnrollment?.class ? activeEnrollment.class.id : null,
-        className: activeEnrollment?.class ? activeEnrollment.class.name : 'Sem turma atribuída',
-        attendanceRate: rate,
+        streak: s.streak?.currentStreak ?? 0,
+        classId: active?.classId ?? null,
+        className: active?.class.name ?? "Sem matrícula ativa",
+        attendanceRate: resolved.length
+          ? Math.round((present / resolved.length) * 100)
+          : null,
+        presentCount: present,
+        absentCount: resolved.filter((a) => a.status === "ABSENT").length,
+        pendingCount: s.attendances.filter((a) => a.status === "PENDING")
+          .length,
+        enrollments: s.enrollments.map((e) => {
+          const lessonIds = new Set(
+            classes.find((c) => c.id === e.classId)?.lessons.map((l) => l.id) ??
+              [],
+          );
+          const records = s.attendances.filter((a) =>
+            lessonIds.has(a.lessonId),
+          );
+          const resolved = records.filter((a) =>
+            ["PRESENT", "ABSENT", "EXCUSED"].includes(a.status),
+          );
+          return {
+            id: e.id,
+            classId: e.classId,
+            className: e.class.name,
+            status: e.status,
+            attendanceRate: resolved.length
+              ? Math.round(
+                  (resolved.filter((a) => a.status === "PRESENT").length /
+                    resolved.length) *
+                    100,
+                )
+              : null,
+            pendingCount: records.filter((a) => a.status === "PENDING").length,
+          };
+        }),
       };
     }),
     gamificationRules: rules.map((r) => ({
@@ -722,7 +840,97 @@ export async function getDirectorDashboard(userId: string) {
     })),
   };
 }
+export type DirectorDashboardData = Awaited<
+  ReturnType<typeof getDirectorDashboard>
+>;
 
+function validatePerson(data: { name?: string; email?: string }) {
+  if (
+    data.name !== undefined &&
+    (typeof data.name !== "string" || !data.name.trim())
+  )
+    throw new Error("Nome inválido.");
+  if (
+    data.email !== undefined &&
+    (typeof data.email !== "string" ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim()))
+  )
+    throw new Error("E-mail inválido.");
+}
+function validateClassFields(data: Record<string, unknown>) {
+  for (const key of ["name", "code", "daysOfWeek", "scheduleTime", "courseId"])
+    if (
+      data[key] !== undefined &&
+      (typeof data[key] !== "string" || !(data[key] as string).trim())
+    )
+      throw new Error("Informações da turma inválidas.");
+  for (const key of ["durationMinutes", "lessonsPerWeek"])
+    if (
+      data[key] !== undefined &&
+      (!Number.isInteger(Number(data[key])) || Number(data[key]) <= 0)
+    )
+      throw new Error(
+        "Duração e aulas por semana devem ser inteiros positivos.",
+      );
+  if (
+    data.status !== undefined &&
+    !["ACTIVE", "FINISHED", "UPCOMING"].includes(String(data.status))
+  )
+    throw new Error("Situação da turma inválida.");
+  for (const key of ["startDate", "endDate"]) {
+    const value = data[key];
+    if (
+      value !== undefined &&
+      !(key === "endDate" && (value === null || value === "")) &&
+      (typeof value !== "string" ||
+        !value ||
+        Number.isNaN(new Date(value).getTime()))
+    )
+      throw new Error("Data inválida.");
+  }
+  if (
+    data.startDate &&
+    data.endDate &&
+    new Date(String(data.endDate)) < new Date(String(data.startDate))
+  )
+    throw new Error("Fim anterior ao início da turma.");
+}
+export async function enrollStudentByDirector(
+  studentId: string,
+  classId: string,
+) {
+  if (!studentId || !classId)
+    throw new Error("Aluno e turma são obrigatórios.");
+  return prisma.$transaction(async (tx) => {
+    if (
+      !(await tx.student.findUnique({ where: { id: studentId } })) ||
+      !(await tx.class.findUnique({ where: { id: classId } }))
+    )
+      throw new Error("Aluno ou turma não encontrado.");
+    if (
+      await tx.enrollment.findUnique({
+        where: { studentId_classId: { studentId, classId } },
+      })
+    )
+      throw Object.assign(
+        new Error(
+          "Matrícula já existe. Altere a situação do registro existente.",
+        ),
+        { statusCode: 409 },
+      );
+    return tx.enrollment.create({
+      data: { studentId, classId, status: "ACTIVE" },
+    });
+  });
+}
+export async function updateEnrollmentByDirector(id: string, status: string) {
+  if (!["ACTIVE", "COMPLETED", "DROPPED"].includes(status))
+    throw new Error("Situação da matrícula inválida.");
+  return prisma.enrollment.update({
+    where: { id },
+    data: { status: status as "ACTIVE" | "COMPLETED" | "DROPPED" },
+  });
+}
 // ==========================================
 // 5. CRUD DE ALUNOS COM TRANSAÇÃO (FASE 5 & 11)
 // ==========================================
@@ -734,8 +942,11 @@ export async function createStudentByDirector(data: {
   registrationNumber?: string;
   currentXp?: number;
 }) {
+  validatePerson(data);
   const normalizedEmail = data.email.toLowerCase().trim();
   const initialXp = Number(data.currentXp) || 100;
+  if (!Number.isInteger(initialXp) || initialXp < 0) throw new Error("XP inválido.");
+  if (data.classId && !await prisma.class.findUnique({ where: { id: data.classId } })) throw new Error("Turma inválida.");
   const regNumber = data.registrationNumber || `MAT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
   // Senha padrão inicial hash com bcrypt (Password123!)
@@ -824,7 +1035,10 @@ export async function updateStudentByDirector(
   },
   directorUserId?: string
 ) {
+  validatePerson(data);
+  if (data.currentXp !== undefined && (!Number.isInteger(data.currentXp) || data.currentXp < 0)) throw new Error("XP inválido.");
   return await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Student" WHERE id = ${studentId} FOR UPDATE`;
     const student = await tx.student.findUnique({
       where: { id: studentId },
       include: { user: true, streak: true },
@@ -896,23 +1110,12 @@ export async function updateStudentByDirector(
     // Atualizar Turma / Matrícula
     let className = 'Sem turma atribuída';
     if (data.classId !== undefined) {
-      // Desativar ou remover matrículas anteriores
-      await tx.enrollment.deleteMany({
-        where: { studentId: student.id },
-      });
-
+      if (data.classId && !await tx.class.findUnique({ where: { id: data.classId } })) throw new Error('Turma inválida.');
+      await tx.enrollment.updateMany({ where: { studentId: student.id, status: 'ACTIVE', ...(data.classId ? { classId: { not: data.classId } } : {}) }, data: { status: 'DROPPED' } });
       if (data.classId) {
-        const cls = await tx.class.findUnique({ where: { id: data.classId } });
-        if (cls) {
-          className = cls.name;
-          await tx.enrollment.create({
-            data: {
-              studentId: student.id,
-              classId: cls.id,
-              status: 'ACTIVE',
-            },
-          });
-        }
+        const cls = await tx.class.findUniqueOrThrow({ where: { id: data.classId } });
+        className = cls.name;
+        await tx.enrollment.upsert({ where: { studentId_classId: { studentId: student.id, classId: cls.id } }, create: { studentId: student.id, classId: cls.id, status: 'ACTIVE' }, update: { status: 'ACTIVE' } });
       }
     } else {
       const activeEnr = await tx.enrollment.findFirst({
@@ -949,6 +1152,7 @@ export async function deleteStudentByDirector(studentId: string) {
 
     if (!student) return false;
 
+    if (await tx.enrollment.count({ where: { studentId } }) || await tx.attendance.count({ where: { studentId } }) || await tx.pointTransaction.count({ where: { studentId } }) || await tx.coinTransaction.count({ where: { studentId } }) || await tx.coinReservation.count({ where: { studentId } })) throw new Error("Aluno possui histórico acadêmico ou financeiro e não pode ser excluído.");
     // Respeitar integridade referencial: deletar dependências
     await tx.pointTransaction.deleteMany({ where: { studentId } });
     await tx.attendance.deleteMany({ where: { studentId } });
@@ -967,7 +1171,8 @@ export async function deleteStudentByDirector(studentId: string) {
 // 6. CRUD DE PROFESSORES COM TRANSAÇÃO (FASE 6)
 // ==========================================
 
-export async function createTeacherByDirector(data: { name: string; email: string; specialty: string }) {
+export async function createTeacherByDirector(data: { name: string; email: string; specialty?: string }) {
+  validatePerson(data);
   const normalizedEmail = data.email.toLowerCase().trim();
   const defaultPasswordHash = '$2b$10$gbSD4FDfU12pM3c67/Ynt.8YIlqbP1r2xMTvokm8QHG1zPp5WOLrW';
 
@@ -991,7 +1196,7 @@ export async function createTeacherByDirector(data: { name: string; email: strin
     const teacher = await tx.teacher.create({
       data: {
         userId: user.id,
-        specialty: data.specialty.trim() || 'Instrutor de Tecnologia',
+        specialty: data.specialty?.trim() || null,
       },
     });
 
@@ -1009,6 +1214,7 @@ export async function updateTeacherByDirector(
   teacherId: string,
   data: { name?: string; email?: string; specialty?: string }
 ) {
+  validatePerson(data);
   return await prisma.$transaction(async (tx) => {
     const teacher = await tx.teacher.findUnique({
       where: { id: teacherId },
@@ -1027,10 +1233,10 @@ export async function updateTeacherByDirector(
       });
     }
 
-    if (data.specialty) {
+    if (data.specialty !== undefined) {
       await tx.teacher.update({
         where: { id: teacherId },
-        data: { specialty: data.specialty.trim() },
+        data: { specialty: data.specialty.trim() || null },
       });
     }
 
@@ -1057,6 +1263,7 @@ export async function deleteTeacherByDirector(teacherId: string) {
 
     if (!teacher) return false;
 
+    if (await tx.lesson.count({ where: { teacherId } })) throw new Error("Professor possui histórico de aulas. Remova apenas sua responsabilidade pela turma.");
     // Tratar turmas vinculadas de forma segura (desvincular o professor para não deixar registros órfãos)
     await tx.class.updateMany({
       where: { teacherId },
@@ -1092,6 +1299,7 @@ export async function createClassByDirector(data: {
   startDate?: string;
   endDate?: string | null;
 }) {
+  validateClassFields(data);
   // Validar referências de Course e Teacher no servidor
   const course = await prisma.course.findUnique({
     where: { id: data.courseId },
@@ -1149,6 +1357,11 @@ export async function createClassByDirector(data: {
 }
 
 export async function updateClassByDirector(classId: string, data: any) {
+  validateClassFields(data);
+  const original = await prisma.class.findUniqueOrThrow({ where: { id: classId } });
+  const start = data.startDate ? new Date(data.startDate) : original.startDate;
+  const end = data.endDate === null || data.endDate === "" ? null : data.endDate ? new Date(data.endDate) : original.endDate;
+  if (end && end < start) throw new Error("Fim anterior ao início da turma.");
   if (data.courseId) {
     const course = await prisma.course.findUnique({ where: { id: data.courseId } });
     if (!course) throw new Error('Curso inválido.');
@@ -1171,6 +1384,8 @@ export async function updateClassByDirector(classId: string, data: any) {
       durationMinutes: data.durationMinutes ? Number(data.durationMinutes) : undefined,
       lessonsPerWeek: data.lessonsPerWeek ? Number(data.lessonsPerWeek) : undefined,
       status: data.status,
+      startDate: data.startDate ? new Date(data.startDate) : undefined,
+      endDate: data.endDate === undefined ? undefined : data.endDate ? new Date(data.endDate) : null,
     },
     include: {
       course: true,
@@ -1203,14 +1418,7 @@ export async function deleteClassByDirector(classId: string) {
     const cls = await tx.class.findUnique({ where: { id: classId } });
     if (!cls) return false;
 
-    // Remover dependências de matrículas, aulas e frequências
-    const lessons = await tx.lesson.findMany({ where: { classId } });
-    const lessonIds = lessons.map((l) => l.id);
-
-    await tx.attendance.deleteMany({ where: { lessonId: { in: lessonIds } } });
-    await tx.lessonContent.deleteMany({ where: { lessonId: { in: lessonIds } } });
-    await tx.lesson.deleteMany({ where: { classId } });
-    await tx.enrollment.deleteMany({ where: { classId } });
+    if (await tx.enrollment.count({ where: { classId } }) || await tx.lesson.count({ where: { classId } })) throw new Error('Turma possui histórico. Utilize a situação Encerrada para preservá-lo.');
     await tx.class.delete({ where: { id: classId } });
 
     return true;
@@ -1272,15 +1480,11 @@ export async function confirmTeacherAttendance(
   teacherUserId: string,
 ) {
   return await prisma.$transaction(async (tx) => {
-    const teacher = await tx.teacher.findUnique({
-      where: { userId: teacherUserId },
-    });
+    const actor = await tx.user.findUnique({ where: { id: teacherUserId }, include: { teacher: true } });
+    const teacher = actor?.teacher;
+    const isDirector = actor?.role === "DIRETOR";
 
-    if (!teacher) {
-      throw new Error(
-        "Não autorizado. Apenas o professor responsável pode confirmar presença.",
-      );
-    }
+    if (!isDirector && (!teacher || actor?.role !== "PROFESSOR")) throw Object.assign(new Error("Acesso negado à solicitação."), { statusCode: 403 });
 
     await tx.$queryRaw`SELECT id FROM "Attendance" WHERE id = ${attendanceId} FOR UPDATE`;
     const attendance = await tx.attendance.findUnique({
@@ -1296,7 +1500,7 @@ export async function confirmTeacherAttendance(
       throw new Error("Registro de presença não encontrado.");
     }
 
-    if (attendance.lesson.class.teacherId !== teacher.id) {
+    if (!isDirector && attendance.lesson.class.teacherId !== teacher?.id) {
       throw Object.assign(
         new Error(
           "Você só pode confirmar presença de alunos das suas próprias turmas.",
@@ -1434,18 +1638,17 @@ export async function rejectTeacherAttendance(
   reason?: string,
 ) {
   return prisma.$transaction(async (tx) => {
-    const teacher = await tx.teacher.findUnique({
-      where: { userId: teacherUserId },
-    });
+    const actor = await tx.user.findUnique({ where: { id: teacherUserId }, include: { teacher: true } });
+    const teacher = actor?.teacher;
+    const isDirector = actor?.role === "DIRETOR";
     await tx.$queryRaw`SELECT id FROM "Attendance" WHERE id = ${attendanceId} FOR UPDATE`;
     const attendance = await tx.attendance.findUnique({
       where: { id: attendanceId },
       include: { lesson: { include: { class: true } } },
     });
     if (
-      !teacher ||
       !attendance ||
-      attendance.lesson.class.teacherId !== teacher.id
+      (!isDirector && (!teacher || actor?.role !== "PROFESSOR" || attendance.lesson.class.teacherId !== teacher.id))
     )
       throw Object.assign(new Error("Acesso negado à solicitação."), {
         statusCode: 403,
@@ -1459,7 +1662,7 @@ export async function rejectTeacherAttendance(
         confirmedAt: null,
         confirmedById: teacherUserId,
         rejectionReason:
-          reason?.trim() || "Solicitação rejeitada pelo professor.",
+          reason?.trim() || (isDirector ? "Solicitação rejeitada pela direção." : "Solicitação rejeitada pelo professor."),
       },
     });
   });

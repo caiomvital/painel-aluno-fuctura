@@ -42,8 +42,8 @@ export async function POST(req: NextRequest) {
       teacherId: teacherId || null,
       daysOfWeek,
       scheduleTime,
-      durationMinutes: durationMinutes ? Number(durationMinutes) : 180,
-      lessonsPerWeek: Number(lessonsPerWeek) || 1,
+      durationMinutes: durationMinutes === undefined ? 180 : Number(durationMinutes),
+      lessonsPerWeek: lessonsPerWeek === undefined ? 1 : Number(lessonsPerWeek),
       startDate: startDate || new Date().toISOString(),
       endDate,
     });

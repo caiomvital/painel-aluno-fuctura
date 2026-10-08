@@ -33,7 +33,7 @@ O nome `_test` não transforma um banco compartilhado em descartável: crie um b
 ## Comandos
 
 - `npm run test:unit`: testes de parsing e das proteções do banco, sem escrita.
-- `npm run test:integration`: migrations no banco autorizado e suíte de serviços existente (17 verificações).
+- `npm run test:integration`: migrations no banco autorizado e suítes de integração dos Marcos 7, 8 e 9 e comparação de schema.
 - `npm run test:e2e`: prepara dados próprios e executa Chromium com login real e PostgreSQL real.
 - `npm run test:all`: Prisma validate/generate, migrations, unitários, TypeScript da aplicação e da suíte, ESLint, build, integração e E2E.
 - `npm run test:supabase`: diagnóstico separado e somente de leitura da conexão Supabase configurada em `SUPABASE_DATABASE_URL` ou `DATABASE_URL`.
@@ -82,3 +82,31 @@ de migrations posterior com backup e autorização.
 temporário próprio, e publica relatórios, screenshots e traces mesmo após falhas.
 O resultado local não comprova a execução no GitHub Actions: consulte a execução
 associada ao commit/PR. O workflow não contém deploy nem credenciais do Supabase.
+
+## Marco 9 — diretor
+
+`scripts/test-marco9.ts` integra a mesma execução e cobre indicadores reais,
+criação/edição de turmas e professores, matrículas e duplicidade concorrente,
+preservação de histórico, diário, confirmações concorrentes, rejeição sem
+recompensa, reconexão e integridade de saldos/ledgers/reservas.
+`tests/e2e/director.spec.ts` usa login real, percorre as seis áreas, cadastra e
+edita registros, atribui professor, matricula aluno, filtra o cronograma, edita
+diário, resolve presenças e verifica autorização administrativa por HTTP para
+aluno e professor, em desktop e mobile. Também cobre ajustes manuais de XP/Coins e
+criação, edição e encerramento de lotes pelos controles existentes. Os novos registros também são removidos
+pelo teardown usando o identificador exclusivo da execução.
+
+Não há nova migration no Marco 9. Curso e módulos são consultados conforme o
+modelo existente; não existe associação individual de módulo à turma no schema.
+A responsabilidade atual do professor pode ser removida sem apagar o professor
+registrado na aula. Matrículas usam os estados existentes ACTIVE, COMPLETED e
+DROPPED, sem exclusão de histórico. Turmas com histórico devem ser encerradas
+(FINISHED), não excluídas. O painel não infere aula ministrada pela data passada.
+Frequência divide presenças confirmadas por registros resolvidos
+(PRESENT/ABSENT/EXCUSED); pendências e aulas sem registro não criam faltas.
+
+A direção consulta leilões sem gerar dados demonstrativos. Ajustes de XP e Coins
+continuam usando os serviços e ledgers existentes; débitos manuais de Coins
+não podem consumir valores reservados. Encerrar lote reutiliza o motor atual,
+e lotes com histórico não podem ser excluídos. A suíte usa exclusivamente o
+PostgreSQL local autorizado, incluindo os testes financeiros.

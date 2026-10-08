@@ -9,9 +9,7 @@ export default async function teardown() {
       });
       await db.user.deleteMany({
         where: {
-          id: {
-            in: [f.teacher, f.otherTeacher, f.student, f.outsider, f.director],
-          },
+          email: { startsWith: f.prefix },
         },
       });
     }

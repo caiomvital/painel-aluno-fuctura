@@ -42,6 +42,7 @@ if (mode === "all") {
 if (mode !== "e2e") {
   run(["scripts/test-marco7.ts"]);
   run(["scripts/test-marco8.ts"]);
+  run(["scripts/test-marco9.ts"]);
   run(["scripts/test-supabase-schema.ts"]);
 }
 if (mode !== "integration")

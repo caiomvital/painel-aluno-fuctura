@@ -1,8 +1,10 @@
 // app/api/director/auction/route.ts
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 import {
   getAuctionOverview,
+  closeAuctionItem,
   createAuctionItemByDirector,
   updateAuctionItemByDirector,
   deleteAuctionItemByDirector,
@@ -10,11 +12,17 @@ import {
 } from '@/lib/auction-service';
 
 export async function GET() {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  if (session.role !== "DIRETOR") return NextResponse.json({ error: "Acesso restrito à diretoria." }, { status: 403 });
   try {
-    const overview = await getAuctionOverview();
+    const overview = await getAuctionOverview(undefined, false);
+    const hasSeason = await prisma.auctionSeason.count();
+    const bids = await prisma.auctionBid.findMany({ take: 100, orderBy: { createdAt: "desc" }, select: { id: true, amount: true, bidderName: true, createdAt: true, item: { select: { title: true } } } });
     return NextResponse.json({
       items: overview.items,
-      settings: overview.settings,
+      bids,
+      settings: hasSeason ? overview.settings : null,
     });
   } catch (err: any) {
     console.error('Erro ao consultar leilão da diretoria:', err);
@@ -35,6 +43,11 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
+    if (body.action === 'CLOSE_ITEM') {
+      if (typeof body.itemId !== 'string' || !body.itemId) return NextResponse.json({error:'Item obrigatório.'}, {status:400});
+      const item = await closeAuctionItem(body.itemId);
+      return NextResponse.json({success:true,item});
+    }
     // Se for atualização de configurações da temporada/datas do leilão
     if (body.action === 'UPDATE_SETTINGS') {
       const updated = await updateAuctionSettingsByDirector({
