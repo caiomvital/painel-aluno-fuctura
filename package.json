@@ -18,7 +18,8 @@
     "prepare:standalone": "node scripts/prepare-standalone.mjs",
     "staging:target": "bun scripts/staging-target.ts",
     "staging:fixtures": "bun scripts/staging-fixtures.ts",
-    "staging:published": "bun scripts/check-staging-published.ts"
+    "staging:published": "bun scripts/check-staging-published.ts",
+    "staging:registration": "bun scripts/check-registration-published.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
