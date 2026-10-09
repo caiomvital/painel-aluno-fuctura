@@ -1,3 +1,4 @@
+import { trackedChange } from '@/lib/panel-events';
 import { publicError } from '@/lib/operational-log';
 // app/api/director/coins/route.ts
 import { NextRequest, NextResponse } from 'next/server';
@@ -54,12 +55,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await manualAdjustStudentCoins({
+    const result = await trackedChange(session, "Coins ajustados", '', description, () => manualAdjustStudentCoins({
       studentId,
       amount: Number(amount),
       description: description || 'Ajuste manual de Coins pela Diretoria',
       directorUserId: session.id,
-    });
+    }));
 
     return NextResponse.json({ success: true, ...result });
   } catch (err: any) {

@@ -1,3 +1,4 @@
+import { trackedChange } from '@/lib/panel-events';
 import { publicError } from '@/lib/operational-log';
 // app/api/director/students/route.ts
 import { NextRequest, NextResponse } from 'next/server';
@@ -45,14 +46,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Nome e e-mail são obrigatórios.' }, { status: 400 });
     }
 
-    const student = await createStudentByDirector({
+    const student = await trackedChange(session, "Aluno criado", '', body.reason, () => createStudentByDirector({
       name,
       email,
       initialPassword,
       classId,
       registrationNumber,
       currentXp: currentXp ? Number(currentXp) : 100,
-    });
+    }));
 
     return NextResponse.json({ success: true, student });
   } catch (error: any) {
@@ -78,7 +79,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'ID do aluno é obrigatório.' }, { status: 400 });
     }
 
-    const updated = await updateStudentByDirector(
+    const updated = await trackedChange(session, "Aluno atualizado", id, body.reason, () => updateStudentByDirector(
       id,
       {
         name,
@@ -89,7 +90,7 @@ export async function PUT(req: NextRequest) {
         streak: streak !== undefined ? Number(streak) : undefined,
       },
       session.id
-    );
+    ));
 
     if (!updated) {
       return NextResponse.json({ error: 'Aluno não encontrado.' }, { status: 404 });
@@ -119,7 +120,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'ID do aluno é obrigatório.' }, { status: 400 });
     }
 
-    const removed = await deleteStudentByDirector(id);
+    const removed = await trackedChange(session, "Aluno excluído", id, searchParams.get('reason'), () => deleteStudentByDirector(id));
     if (!removed) {
       return NextResponse.json({ error: 'Aluno não encontrado.' }, { status: 404 });
     }

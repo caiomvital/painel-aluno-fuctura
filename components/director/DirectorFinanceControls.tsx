@@ -36,6 +36,7 @@ import {
 import type { AuctionItem, AuctionGlobalSettings } from "@/lib/auctionStore";
 import type { DirectorDashboardData } from "@/lib/academic-service";
 import { api, buttonClass, fieldClass } from "./director-ui";
+import { AuctionBidHistory } from './AuctionBidHistory';
 
 export default function DirectorFinanceControls({
   data,
@@ -555,6 +556,8 @@ export default function DirectorFinanceControls({
                         {item.totalBids} lances
                       </span>
                     </div>
+
+                    <AuctionBidHistory itemId={item.id} />
 
                     <div className="flex items-center gap-2">
                       <button

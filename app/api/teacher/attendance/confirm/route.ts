@@ -1,3 +1,4 @@
+import { trackedChange } from '@/lib/panel-events';
 import { publicError } from '@/lib/operational-log';
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Professor só pode confirmar presença de aluno pertencente às suas turmas
-    const attendance = await confirmTeacherAttendance(attendanceId, session.id);
+    const attendance = await trackedChange(session, "Presença confirmada", attendanceId, undefined, () => confirmTeacherAttendance(attendanceId, session.id));
     return NextResponse.json({ success: true, attendance });
   } catch (error: any) {
     return NextResponse.json(

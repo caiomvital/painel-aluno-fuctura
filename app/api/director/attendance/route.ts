@@ -1,3 +1,4 @@
+import { trackedChange } from '@/lib/panel-events';
 import { publicError } from '@/lib/operational-log';
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
@@ -25,12 +26,12 @@ export async function POST(req: Request) {
       throw new Error("Solicitação inválida.");
     const attendance =
       body.action === "CONFIRM"
-        ? await confirmTeacherAttendance(body.attendanceId, session.id)
-        : await rejectTeacherAttendance(
+        ? await trackedChange(session, "Presença confirmada", body.attendanceId, body.reason, () => confirmTeacherAttendance(body.attendanceId, session.id))
+        : await trackedChange(session, "Presença rejeitada", body.attendanceId, body.reason, () => rejectTeacherAttendance(
             body.attendanceId,
             session.id,
             body.reason,
-          );
+          ));
     return NextResponse.json({ attendance });
   } catch (error: any) {
     return NextResponse.json(

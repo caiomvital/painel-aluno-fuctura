@@ -1,3 +1,4 @@
+import { trackedChange } from '@/lib/panel-events';
 import { publicError } from '@/lib/operational-log';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
@@ -19,7 +20,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Código da regra e valor de XP são obrigatórios.' }, { status: 400 });
     }
 
-    const updatedRule = await updateGamificationRuleByDirector(ruleCode, Number(xpValue));
+    const updatedRule = await trackedChange(session, "Regra de XP atualizada", ruleCode, undefined, () => updateGamificationRuleByDirector(ruleCode, Number(xpValue)));
     return NextResponse.json({ success: true, rule: updatedRule });
   } catch (error: any) {
     return NextResponse.json({ error: publicError(error, 'Erro ao atualizar regra de gamificação.', "director.gamification.failed") }, { status: 400 });

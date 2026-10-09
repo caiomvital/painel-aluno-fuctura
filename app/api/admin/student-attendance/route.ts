@@ -1,3 +1,4 @@
+import { trackedChange } from '@/lib/panel-events';
 import { publicError } from '@/lib/operational-log';
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
@@ -87,13 +88,13 @@ export async function POST(req: NextRequest) {
 
     const actorUserId = session.id;
 
-    const attendance = await updateStudentAttendanceRecord({
+    const attendance = await trackedChange(session, "Frequência atualizada", '', justificationReason, () => updateStudentAttendanceRecord({
       studentId,
       lessonId,
       status,
       justificationReason,
       actorUserId,
-    });
+    }));
 
     const updatedHistory = await getStudentAttendanceHistory(
       studentId,

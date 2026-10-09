@@ -1,3 +1,4 @@
+import { trackedChange } from '@/lib/panel-events';
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import {
@@ -58,12 +59,12 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     return NextResponse.json({
-      registration: await reviewRegistration(
+      registration: await trackedChange(session, "Cadastro revisado", body.id, body.reason, () => reviewRegistration(
         session.id,
         body.id,
         body.decision,
         typeof body.role === "string" ? body.role : undefined,
-      ),
+      )),
     });
   } catch (error) {
     return failed(error);

@@ -1,3 +1,4 @@
+import { trackedChange } from '@/lib/panel-events';
 import { publicError } from '@/lib/operational-log';
 // app/api/director/auction/route.ts
 import { NextResponse } from 'next/server';
@@ -46,17 +47,17 @@ export async function POST(req: Request) {
 
     if (body.action === 'CLOSE_ITEM') {
       if (typeof body.itemId !== 'string' || !body.itemId) return NextResponse.json({error:'Item obrigatório.'}, {status:400});
-      const item = await closeAuctionItem(body.itemId);
+      const item = await trackedChange(session, "Lote encerrado", body.itemId, body.reason, () => closeAuctionItem(body.itemId));
       return NextResponse.json({success:true,item});
     }
     // Se for atualização de configurações da temporada/datas do leilão
     if (body.action === 'UPDATE_SETTINGS') {
-      const updated = await updateAuctionSettingsByDirector({
+      const updated = await trackedChange(session, "Temporada atualizada", '', body.reason, () => updateAuctionSettingsByDirector({
         seasonTitle: body.seasonTitle,
         status: body.status,
         endDate: body.endDate,
         minBidIncrement: body.minBidIncrement ? Number(body.minBidIncrement) : undefined,
-      });
+      }));
 
       if (!updated) {
         return NextResponse.json(
@@ -74,7 +75,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Título, categoria e descrição são obrigatórios.' }, { status: 400 });
     }
 
-    const newItem = await createAuctionItemByDirector({
+    const newItem = await trackedChange(session, "Lote criado", '', body.reason, () => createAuctionItemByDirector({
       title,
       category,
       description,
@@ -83,7 +84,7 @@ export async function POST(req: Request) {
       iconType: iconType || 'keyboard',
       isFeatured: !!isFeatured,
       endsInSeconds: Number(endsInSeconds) || 3600 * 48,
-    });
+    }));
 
     return NextResponse.json({ success: true, item: newItem });
   } catch (err: any) {
@@ -106,7 +107,7 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: 'ID do item é obrigatório.' }, { status: 400 });
     }
 
-    const updated = await updateAuctionItemByDirector(id, data);
+    const updated = await trackedChange(session, "Lote atualizado", id, body.reason, () => updateAuctionItemByDirector(id, data));
     if (!updated) {
       return NextResponse.json({ error: 'Item não encontrado.' }, { status: 404 });
     }
@@ -132,7 +133,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'ID é obrigatório.' }, { status: 400 });
     }
 
-    const removed = await deleteAuctionItemByDirector(id);
+    const removed = await trackedChange(session, "Lote excluído", id, searchParams.get('reason'), () => deleteAuctionItemByDirector(id));
     if (!removed) {
       return NextResponse.json({ error: 'Item não encontrado para remoção.' }, { status: 404 });
     }

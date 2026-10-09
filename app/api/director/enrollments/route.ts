@@ -1,3 +1,4 @@
+import { trackedChange } from '@/lib/panel-events';
 import { publicError } from '@/lib/operational-log';
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
@@ -22,8 +23,8 @@ async function change(req: Request, editing: boolean) {
     if (ids.some((id) => typeof id !== "string" || !id.trim()))
       throw new Error("Identificadores e situação são obrigatórios.");
     const enrollment = editing
-      ? await updateEnrollmentByDirector(body.id, body.status)
-      : await enrollStudentByDirector(body.studentId, body.classId);
+      ? await trackedChange(session, "Matrícula atualizada", body.id, body.reason, () => updateEnrollmentByDirector(body.id, body.status))
+      : await trackedChange(session, "Matrícula criada", body.studentId, body.reason, () => enrollStudentByDirector(body.studentId, body.classId));
     return NextResponse.json({ enrollment });
   } catch (error: any) {
     return NextResponse.json(

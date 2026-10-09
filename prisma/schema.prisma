@@ -74,6 +74,8 @@ model User {
   avatarUrl    String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  sessionVersion Int @default(0)
+  preferences Json @default("{}")
 
   profile               Profile?
   student               Student?
@@ -81,9 +83,39 @@ model User {
   director              Director?
   registration          RegistrationRequest?  @relation("RegistrationApplicant")
   reviewedRegistrations RegistrationRequest[] @relation("RegistrationReviewer")
+  notifications Notification[]
 
   @@index([email])
   @@index([role])
+}
+
+model Notification {
+  id String @id @default(cuid())
+  userId String
+  category String
+  title String
+  message String
+  target String
+  readAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+}
+
+model AuditLog {
+  id String @id @default(cuid())
+  actorId String?
+  actorName String
+  action String
+  entityId String
+  summary String
+  reason String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entityId, createdAt])
 }
 
 model RegistrationRequest {

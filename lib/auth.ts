@@ -29,19 +29,21 @@ export async function getSession(): Promise<SessionUser | null> {
         name: true,
         email: true,
         role: true,
+        sessionVersion: true,
         student: { select: { id: true } },
         teacher: { select: { id: true } },
         director: { select: { id: true } },
         registration: { select: { status: true } },
       },
     });
-    if (!user || user.role !== session.role) return null;
+    if (!user || user.role !== session.role || user.sessionVersion !== (session.sessionVersion ?? 0)) return null;
     if (user.registration && user.registration.status !== "APPROVED") return null;
     return {
       id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
+      sessionVersion: user.sessionVersion,
       studentId: user.student?.id,
       teacherId: user.teacher?.id,
       directorId: user.director?.id,

@@ -1,1 +1,44 @@
 @import "tailwindcss";
+html[data-text-size="large"] { font-size: 18px; }
+html[data-text-size="larger"] { font-size: 20px; }
+
+/* Keep the existing contrast and semantic accent colors across panel palettes. */
+html[data-panel-color="blue"] {
+  --panel-base: #080f20;
+  --panel-header: #0c172b;
+  --panel-footer: #060c19;
+  --color-slate-950: #081226;
+  --color-slate-900: #10203a;
+  --color-slate-800: #203757;
+  --color-slate-700: #344e70;
+}
+html[data-panel-color="green"] {
+  --panel-base: #071611;
+  --panel-header: #0b2019;
+  --panel-footer: #05100c;
+  --color-slate-950: #081a14;
+  --color-slate-900: #102b22;
+  --color-slate-800: #204539;
+  --color-slate-700: #345e50;
+}
+html[data-panel-color="violet"] {
+  --panel-base: #120b20;
+  --panel-header: #1a112b;
+  --panel-footer: #0d0719;
+  --color-slate-950: #170d26;
+  --color-slate-900: #24173a;
+  --color-slate-800: #3b2957;
+  --color-slate-700: #534070;
+}
+html[data-panel-color]:not([data-panel-color="default"]) body {
+  background-color: var(--panel-base);
+}
+html[data-panel-color]:not([data-panel-color="default"]) .bg-\[\#070a12\] {
+  background-color: var(--panel-base);
+}
+html[data-panel-color]:not([data-panel-color="default"]) header {
+  background-color: var(--panel-header);
+}
+html[data-panel-color]:not([data-panel-color="default"]) footer {
+  background-color: var(--panel-footer);
+}

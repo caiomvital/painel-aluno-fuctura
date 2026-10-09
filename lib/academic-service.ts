@@ -1,3 +1,4 @@
+import { notifyUsers, notifyClass } from './panel-events';
 import { initialPasswordHash } from "./account-password";
 import {lessonTiming} from "./teacher-metrics";
 // lib/academic-service.ts
@@ -1600,6 +1601,8 @@ export async function confirmTeacherAttendance(
       });
     }
 
+    const notifiedStudent = await tx.student.findUniqueOrThrow({ where: { id: updatedAttendance.studentId }, select: { userId: true } });
+    await notifyUsers(tx, [notifiedStudent.userId], { category: 'ACADEMIC', title: 'Presença confirmada', message: `Sua presença na aula ${attendance.lesson.title} foi confirmada.`, target: 'lessons' });
     return {
       id: updatedAttendance.id,
       lessonId: updatedAttendance.lessonId,
@@ -1635,7 +1638,7 @@ export async function rejectTeacherAttendance(
       });
     if (attendance.status !== "PENDING")
       throw new Error("Solicitação já resolvida.");
-    return tx.attendance.update({
+    const updated = await tx.attendance.update({
       where: { id: attendanceId },
       data: {
         status: "ABSENT",
@@ -1645,6 +1648,9 @@ export async function rejectTeacherAttendance(
           reason?.trim() || (isDirector ? "Solicitação rejeitada pela direção." : "Solicitação rejeitada pelo professor."),
       },
     });
+    const notifiedStudent = await tx.student.findUniqueOrThrow({ where: { id: attendance.studentId }, select: { userId: true } });
+    await notifyUsers(tx, [notifiedStudent.userId], { category: 'ACADEMIC', title: 'Presença revisada', message: `Sua solicitação na aula ${attendance.lesson.title} foi rejeitada. Consulte o registro de frequência.`, target: 'lessons' });
+    return updated;
   });
 }
 
@@ -1881,6 +1887,11 @@ export async function updateStudentAttendanceRecord(params: {
               : null,
         },
       });
+    }
+
+    if (!existing || existing.status !== status) {
+      const recipient = await tx.student.findUniqueOrThrow({ where: { id: studentId }, select: { userId: true } });
+      await notifyUsers(tx, [recipient.userId], { category: 'ACADEMIC', title: 'Frequência revisada', message: 'Um registro de frequência foi atualizado. Consulte seu histórico de aulas.', target: 'lessons' });
     }
 
     // Se alterou para PRESENT e o aluno ainda não tinha recebido XP por essa aula:
@@ -2371,6 +2382,7 @@ export async function updateLessonDiary(
         });
       }
     }
+    await notifyClass(tx, lesson.classId, 'Diário atualizado', `Confira o conteúdo e os materiais da aula ${lesson.title}.`);
   });
 
   return getLessonWithDiary(lessonId, sessionUser);

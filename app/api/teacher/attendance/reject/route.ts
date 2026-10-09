@@ -1,3 +1,4 @@
+import { trackedChange } from '@/lib/panel-events';
 import { publicError } from '@/lib/operational-log';
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
@@ -25,11 +26,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const attendance = await rejectTeacherAttendance(
+    const attendance = await trackedChange(session, "Presença rejeitada", attendanceId, reason, () => rejectTeacherAttendance(
       attendanceId,
       session.id,
       reason,
-    );
+    ));
     return NextResponse.json({ success: true, attendance });
   } catch (error: any) {
     return NextResponse.json(

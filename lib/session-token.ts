@@ -9,6 +9,7 @@ export interface SessionUser {
   studentId?: string;
   teacherId?: string;
   directorId?: string;
+  sessionVersion?: number;
 }
 const issuer = "fuctura",
   audience = "fuctura-panel";
@@ -44,6 +45,7 @@ export async function verifySessionToken(
     for (const key of ["studentId", "teacherId", "directorId"])
       if (payload[key] !== undefined && typeof payload[key] !== "string")
         return null;
+    if (payload.sessionVersion !== undefined && (!Number.isSafeInteger(payload.sessionVersion) || Number(payload.sessionVersion) < 0)) return null;
     return {
       id: payload.id,
       name: payload.name,
@@ -52,6 +54,7 @@ export async function verifySessionToken(
       studentId: payload.studentId as string | undefined,
       teacherId: payload.teacherId as string | undefined,
       directorId: payload.directorId as string | undefined,
+      sessionVersion: (payload.sessionVersion as number | undefined) ?? 0,
     };
   } catch {
     return null;

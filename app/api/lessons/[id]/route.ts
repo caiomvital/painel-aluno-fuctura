@@ -1,3 +1,4 @@
+import { trackedChange } from '@/lib/panel-events';
 import { publicError } from '@/lib/operational-log';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
@@ -47,7 +48,7 @@ export async function PUT(
     const body = await req.json();
     const { plannedTopics, taughtTopics, materials } = body;
 
-    const updated = await updateLessonDiary(
+    const updated = await trackedChange(session, "Diário atualizado", id, body.reason, () => updateLessonDiary(
       id,
       {
         plannedTopics,
@@ -55,7 +56,7 @@ export async function PUT(
         materials,
       },
       session
-    );
+    ));
 
     return NextResponse.json({
       success: true,

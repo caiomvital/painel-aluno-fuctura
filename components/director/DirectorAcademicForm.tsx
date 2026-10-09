@@ -153,6 +153,7 @@ export default function DirectorAcademicForm({
                   )}
             </>
           )}
+          {input("reason", "Motivo da alteração (opcional)", "text", false)}
           {error && (
             <p role="alert" className="text-rose-300 sm:col-span-2">
               {error}

@@ -54,6 +54,7 @@ export const LessonDiaryModal: React.FC<LessonDiaryModalProps> = ({
   const [materials, setMaterials] = useState<SupportMaterialItem[]>([]);
 
   // Inputs for adding new items
+  const [changeReason, setChangeReason] = useState('');
   const [newPlannedTopic, setNewPlannedTopic] = useState('');
   const [editingPlannedIndex, setEditingPlannedIndex] = useState<number | null>(null);
   const [editingPlannedValue, setEditingPlannedValue] = useState('');
@@ -271,6 +272,7 @@ export const LessonDiaryModal: React.FC<LessonDiaryModalProps> = ({
           plannedTopics,
           taughtTopics,
           materials,
+          reason: changeReason,
         }),
       });
 
@@ -858,6 +860,7 @@ export const LessonDiaryModal: React.FC<LessonDiaryModalProps> = ({
           )}
         </div>
 
+        {!isReadOnly && <label className="block bg-slate-950 px-4 py-2 text-xs text-slate-300">Motivo da alteração (opcional)<input maxLength={500} value={changeReason} onChange={e => setChangeReason(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 p-2" /></label>}
         {/* Footer with Persistent Save Button */}
         <div className="p-3 sm:p-4 bg-slate-950/80 border-t border-slate-800 flex flex-wrap gap-2 items-center justify-between shrink-0">
           <button

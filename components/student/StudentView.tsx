@@ -41,6 +41,16 @@ export const StudentView: React.FC = () => {
   const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null);
   const [studentBalance, setStudentBalance] = useState<number>(0);
   const [directBidItem, setDirectBidItem] = useState<AuctionItem | null>(null);
+  useEffect(() => {
+    function onNavigate(event: Event) {
+      const detail = (event as CustomEvent<import('@/lib/panel-navigation').PanelTarget>).detail;
+      setActiveTab(detail.target === 'auction' ? 'auction' : detail.target === 'lessons' || detail.target === 'attendance' ? 'lessons' : 'overview');
+      if (detail.target === 'lessons' && detail.id) setExpandedLessonId(detail.id);
+    }
+    window.addEventListener('panel:navigate', onNavigate);
+    return () => window.removeEventListener('panel:navigate', onNavigate);
+  }, []);
+
 
   const handleOpenFlashcardBid = (item: AuctionItem) => {
     setActiveTab('auction');

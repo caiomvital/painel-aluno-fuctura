@@ -1,3 +1,4 @@
+import { notifyUsers } from './panel-events';
 import { hash } from "bcryptjs";
 import { prisma } from "./prisma";
 import { registrationInput } from "./registration-input";
@@ -15,7 +16,8 @@ export async function requestRegistration(body: unknown) {
   const data = registrationInput(body);
   const passwordHash = await hash(data.password, 10);
   // No student, enrollment, session or reward exists until approval.
-  const user = await prisma.user.create({
+  return prisma.$transaction(async tx => {
+  const user = await tx.user.create({
     data: {
       name: data.name,
       email: data.email,
@@ -26,7 +28,10 @@ export async function requestRegistration(body: unknown) {
     },
     select: { registration: { select: { id: true, status: true } } },
   });
+  const directors = await tx.user.findMany({ where: { role: 'DIRETOR' }, select: { id: true } });
+  await notifyUsers(tx, directors.map(d => d.id), { category: 'ACCOUNT', title: 'Novo cadastro aguardando aprovação', message: 'Há uma nova solicitação de acesso ao painel.', target: 'registrations' });
   return user.registration;
+  });
 }
 export async function listRegistrations(actorId: string) {
   const actor = await prisma.user.findUnique({
@@ -96,6 +101,7 @@ export async function reviewRegistration(
         where: { id: request.userId },
         data: { role: role as "ALUNO" | "PROFESSOR" },
       });
+    await notifyUsers(tx, [request.userId], { category: 'ACCOUNT', title: decision === 'APPROVED' ? 'Cadastro aprovado' : 'Cadastro revisado', message: decision === 'APPROVED' ? 'Seu acesso ao painel foi liberado.' : 'Entre em contato com a secretaria sobre seu cadastro.', target: 'overview' });
     // Model defaults start XP/Coins at zero. Only the existing login/presence services award rewards.
     return tx.registrationRequest.update({
       where: { id },

@@ -1,3 +1,5 @@
+import { databaseContext } from './database-context';
+import { notifyUsers } from './panel-events';
 import { operationalLog } from './operational-log';
 // lib/auction-service.ts
 import { prisma } from '@/lib/prisma';
@@ -749,6 +751,10 @@ export async function placeAuctionBid(
         },
       });
 
+      if (item.highestBidderId && item.highestBidderId !== studentId) {
+        const previous = await tx.student.findUnique({ where: { id: item.highestBidderId }, select: { userId: true } });
+        if (previous) await notifyUsers(tx, [previous.userId], { category: 'AUCTION', title: 'Seu lance foi superado', message: `Outro participante lidera o lote ${item.title}.`, target: 'auction' });
+      }
       // 12. Recalcular sumário de Coins do aluno pós-lance
       const totalReservedNow = reservedOnOtherItems + amount;
       const finalAvailable = student.coinBalance - totalReservedNow;
@@ -889,6 +895,9 @@ export async function closeAuctionItem(itemId: string) {
       },
     });
 
+    const participants = await tx.auctionBid.findMany({ where: { itemId }, distinct: ['studentId'], select: { studentId: true, student: { select: { userId: true } } } });
+    for (const participant of participants) await notifyUsers(tx, [participant.student.userId], { category: 'AUCTION', title: participant.studentId === winnerId ? 'Você arrematou um lote' : 'Leilão encerrado', message: `O lote ${item.title} foi encerrado${participant.studentId === winnerId ? ` por ${item.currentBid} Coins` : ''}.`, target: 'auction' });
+    if (!databaseContext.getStore()) await tx.auditLog.create({ data: { actorName: 'Sistema', action: 'Lote encerrado pelo serviço', entityId: itemId, summary: `Lote encerrado: ${item.title}` } });
     return finishedItem;
   });
 }

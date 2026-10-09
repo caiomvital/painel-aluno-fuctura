@@ -1,3 +1,4 @@
+import { trackedChange } from '@/lib/panel-events';
 import { publicError } from '@/lib/operational-log';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Todos os campos obrigatórios da turma devem ser informados.' }, { status: 400 });
     }
 
-    const newClass = await createClassByDirector({
+    const newClass = await trackedChange(session, "Turma criada", '', body.reason, () => createClassByDirector({
       name,
       code,
       courseId,
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
       lessonsPerWeek: lessonsPerWeek === undefined ? 1 : Number(lessonsPerWeek),
       startDate: startDate || new Date().toISOString(),
       endDate,
-    });
+    }));
 
     return NextResponse.json({ success: true, class: newClass });
   } catch (error: any) {
@@ -73,7 +74,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'ID da turma é obrigatório.' }, { status: 400 });
     }
 
-    const updated = await updateClassByDirector(classId, data);
+    const updated = await trackedChange(session, "Turma atualizada", classId, body.reason, () => updateClassByDirector(classId, data));
     return NextResponse.json({ success: true, class: updated });
   } catch (error: any) {
     return NextResponse.json({ error: publicError(error, 'Erro ao atualizar turma.', "director.classes.failed") }, { status: 400 });
@@ -97,7 +98,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'ID da turma é obrigatório.' }, { status: 400 });
     }
 
-    const removed = await deleteClassByDirector(classId);
+    const removed = await trackedChange(session, "Turma excluída", classId, searchParams.get('reason'), () => deleteClassByDirector(classId));
     if (!removed) {
       return NextResponse.json({ error: 'Turma não encontrada para remoção.' }, { status: 404 });
     }

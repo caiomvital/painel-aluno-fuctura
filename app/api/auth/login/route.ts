@@ -89,6 +89,7 @@ export async function POST(req: NextRequest) {
       studentId,
       teacherId,
       directorId,
+      sessionVersion: user.sessionVersion,
     };
 
     const token = await createSessionToken(sessionUser);

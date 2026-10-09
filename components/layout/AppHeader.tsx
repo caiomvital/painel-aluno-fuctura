@@ -4,6 +4,8 @@ import React from 'react';
 import { PWAInstallButton } from '@/components/pwa/PWAInstallButton';
 import { LogOut, User, Shield, GraduationCap, School } from 'lucide-react';
 import Image from 'next/image';
+import { PanelColorPicker } from './PanelColorPicker';
+import { PanelTools } from './PanelTools';
 
 interface AppHeaderProps {
   user: {
@@ -65,6 +67,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ user, onLogout, onSwitchRo
         {/* Action Controls & User Identity */}
         <div className="flex items-center gap-2 sm:gap-4">
           <PWAInstallButton compact />
+          {user && <PanelColorPicker />}
+          {user && <PanelTools role={user.role} />}
 
           {/* Quick Switch Role Pills (Visual UI Preview for dev only - does not grant API permissions) */}
           {process.env.NODE_ENV === 'development' && user && onSwitchRole && (

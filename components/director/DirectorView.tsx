@@ -50,6 +50,24 @@ export function DirectorView() {
   const [enrollClass, setEnrollClass] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
+    function onNavigate(event: Event) {
+      const detail = (event as CustomEvent<import('@/lib/panel-navigation').PanelTarget>).detail;
+      setClassId(''); setTeacherId(''); setStudentId(''); setSearch(''); setLessonFilter('');
+      setFrom(''); setTo(''); setDiaryStatus(''); setEnrollmentStatus(''); setAttendanceStatus('PENDING');
+      const mapping: Record<string, Tab> = { overview: 'Visão Geral', registrations: 'Alunos', students: 'Alunos', teachers: 'Professores', classes: 'Turmas', attendance: 'Aulas e Presenças', diary: 'Aulas e Presenças', lessons: 'Aulas e Presenças', auction: 'Gamificação e Leilões' };
+      setTab(mapping[detail.target] ?? 'Visão Geral');
+      if (detail.target === 'diary' && detail.id) setDiary(detail.id);
+      if (detail.classId) setClassId(detail.classId);
+      if (detail.target === 'classes' && detail.id) setClassId(detail.id);
+      if (detail.target === 'teachers' && detail.id) setTeacherId(detail.id);
+      if (detail.target === 'students' && detail.id) setStudentId(detail.id);
+      if (detail.target === 'auction' && detail.id) window.setTimeout(() => document.querySelector(`[data-testid="auction-${CSS.escape(detail.id!)}"]`)?.scrollIntoView({ block: 'center' }), 500);
+    }
+    window.addEventListener('panel:navigate', onNavigate);
+    return () => window.removeEventListener('panel:navigate', onNavigate);
+  }, []);
+
+  useEffect(() => {
     const controller = new AbortController();
     api("/api/director/dashboard", undefined, undefined, controller.signal)
       .then(setData)
@@ -222,6 +240,7 @@ export function DirectorView() {
   const filteredStudents = data.students.filter(
     (s) =>
       s.name.toLocaleLowerCase("pt-BR").includes(query) &&
+      (!studentId || s.id === studentId) &&
       (!classId ||
         s.enrollments.some(
           (e) =>

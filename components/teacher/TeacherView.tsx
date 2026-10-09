@@ -40,6 +40,17 @@ export function TeacherView() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [resolved, setResolved] = useState(false);
+  useEffect(() => {
+    function onNavigate(event: Event) {
+      const detail = (event as CustomEvent<import('@/lib/panel-navigation').PanelTarget>).detail;
+      setClassId(detail.classId ?? ''); setLessonFilter(''); setResolved(false);
+      setArea(detail.target === 'attendance' ? 'Presenças' : detail.target === 'overview' ? 'Visão Geral' : 'Aulas e Diário');
+      if (detail.target === 'diary' && detail.id) setDiary(detail.id);
+    }
+    window.addEventListener('panel:navigate', onNavigate);
+    return () => window.removeEventListener('panel:navigate', onNavigate);
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {

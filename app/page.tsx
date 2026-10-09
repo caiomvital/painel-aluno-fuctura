@@ -6,6 +6,7 @@ import { LoginForm } from '@/components/auth/LoginForm';
 import { StudentView } from '@/components/student/StudentView';
 import { TeacherView } from '@/components/teacher/TeacherView';
 import { DirectorView } from '@/components/director/DirectorView';
+import { UserPreferences } from '@/components/layout/UserPreferences';
 
 export default function HomePage() {
   const [user, setUser] = useState<any>(null);
@@ -83,7 +84,7 @@ export default function HomePage() {
     );
   }
 
-  return (
+  const content = (
     <div className="min-h-screen bg-[#070a12] flex flex-col text-slate-100 selection:bg-cyan-500/20 selection:text-cyan-300">
       {/* Brand Header with PWA installation & profile info */}
       <AppHeader user={user} onLogout={handleLogout} onSwitchRole={handleSwitchRole} />
@@ -126,4 +127,5 @@ export default function HomePage() {
       </footer>
     </div>
   );
+  return user ? <UserPreferences key={user.id}>{content}</UserPreferences> : content;
 }
